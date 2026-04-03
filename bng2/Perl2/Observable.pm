@@ -277,7 +277,10 @@ sub match
             if ($patt->Quantifier)
             {
                 my $test_string = $n_match . $patt->Quantifier;
-                my $result = eval $test_string;
+                require Safe;
+                my $safe = Safe->new();
+                $safe->permit(qw(:base_core :base_math :base_mem :cmp));
+                my $result = $safe->reval($test_string);
                 warn $@ if $@;
                 $total_matches += $result ? 1 : 0;
                 last if ($mode);
