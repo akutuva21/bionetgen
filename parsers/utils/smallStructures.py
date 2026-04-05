@@ -225,20 +225,26 @@ class Species:
                     
     
     def updateBonds(self,bondNumbers):
-        newBondNumbers = deepcopy(bondNumbers)
+        # ⚡ Bolt: Cache self.getBondNumbers() as a set to avoid O(N^2) complexity
+        my_bonds = set(self.getBondNumbers())
+        intersection = [int(x) for x in bondNumbers if int(x) in my_bonds]
+        if not intersection:
+            return
+
         correspondence = {}
-        intersection = [int(x) for x in newBondNumbers if x in self.getBondNumbers()]
+        max_intersect = max(intersection)
         for element in self.molecules:
             for component in element.components:
                 for index in range(0,len(component.bonds)):
-                    if int(component.bonds[index]) in intersection:
-                        
-                        if component.bonds[index] in correspondence:
-                            component.bonds[index] = correspondence[component.bonds[index]]
+                    b_int = int(component.bonds[index])
+                    if b_int in intersection:
+                        b_str = component.bonds[index]
+                        if b_str in correspondence:
+                            component.bonds[index] = correspondence[b_str]
                         else:
-                            correspondence[component.bonds[index]] = max(intersection) + 1
-                            component.bonds[index] = max(intersection) + 1
-                        #intersection = [int(x) for x in newBondNumbers if x in self.getBondNumbers()]
+                            new_bond = max_intersect + 1
+                            correspondence[b_str] = new_bond
+                            component.bonds[index] = new_bond
     
     def append(self,species):
         newSpecies = (deepcopy(species))
