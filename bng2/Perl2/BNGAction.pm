@@ -48,7 +48,10 @@ sub simulate_protocol
 
         if(index($action,"simulate") != -1)
         {
-            my $hash_opts_ref = eval($options);
+            require Safe;
+            my $safe = Safe->new;
+            $safe->permit(qw(:base_core :base_math :base_mem entereval));
+            my $hash_opts_ref = $safe->reval($options);
             #modifying hash with local prefix
             $hash_opts_ref->{prefix} = $params->{prefix};
             #deleting suffix
@@ -59,9 +62,22 @@ sub simulate_protocol
         else
         {
             $modified_options = $options;
-            my $command = sprintf "\$model->%s(%s);", $action, $modified_options;
+            require Safe;
+            my $safe = Safe->new;
+            $safe->permit(qw(:base_core :base_math :base_mem entereval));
+            my @opts_args = ();
+            if (defined $modified_options && $modified_options ne '') {
+                my $opts = $safe->reval("[$modified_options]");
+                if ($@) { return $@; }
+                @opts_args = @$opts if ref $opts eq 'ARRAY';
+            }
             my $t_start = cpu_time(0);
-            $err = eval $command;
+            if ($model->can($action)) {
+                $err = eval { $model->$action(@opts_args) };
+                if ($@) { $err = $@; }
+            } else {
+                $err = "Action $action not found";
+            }
             #if ($@)   { $err = errgen($@);    goto EXIT; }
             #if ($err) { $err = errgen($err);  goto EXIT; }
             my $t_elapsed = cpu_time($t_start);
@@ -1508,10 +1524,40 @@ sub generate_hybrid_model
     {   # execute actions
         $BNGModel::GLOBAL_MODEL = $hybrid_model;
         my $errors = [];
-        foreach my $action ( @{$options->{actions}} )
+        foreach my $action_cmd ( @{$options->{actions}} )
         {
-            my $action_string = "\$hybrid_model->$action";
-            my $err = eval "$action_string";
+            # action string looks like "action(opts)" or "action"
+            # It's better to just extract the method and options and run safely,
+            # but since we're restricting scope, let's just use Safe directly if we really need to evaluate strings
+            # In writeXML, actions is just an array of strings like "simulate({t_end=>1})"
+            my ($method, $args_str);
+            if ($action_cmd =~ /^(\w+)(?:\((.*)\))?;?$/) {
+                $method = $1;
+                $args_str = $2;
+            } else {
+                $method = $action_cmd;
+            }
+
+            my $err;
+            if ($hybrid_model->can($method)) {
+                require Safe;
+                my $safe = Safe->new;
+                $safe->permit(qw(:base_core :base_math :base_mem entereval));
+                my @opts_args = ();
+                if (defined $args_str && $args_str ne '') {
+                    my $opts = $safe->reval("[$args_str]");
+                    if ($@) { $err = $@; }
+                    @opts_args = @$opts if ref $opts eq 'ARRAY';
+                }
+
+                if (!$err) {
+                    $err = eval { $hybrid_model->$method(@opts_args) };
+                    if ($@) { $err = $@; }
+                }
+            } else {
+                $err = "Action $method not found";
+            }
+
             if ($@)   {  warn $@;  }
             if ($err) {  push @$errors, $err;  }
         }

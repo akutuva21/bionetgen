@@ -954,9 +954,22 @@ sub readSBML
                             }
     
                             # execute action        
-                            my $command = sprintf "\$model->%s(%s);", $action, $options;
+                            require Safe;
+                            my $safe = Safe->new;
+                            $safe->permit(qw(:base_core :base_math :base_mem entereval));
+                            my @opts_args = ();
+                            if (defined $options && $options ne '') {
+                                my $opts = $safe->reval("[$options]");
+                                if ($@) { $err = errgen($@); goto EXIT; }
+                                @opts_args = @$opts if ref $opts eq 'ARRAY';
+                            }
                             my $t_start = cpu_time(0);
-                            $err = eval $command;
+                            if ($model->can($action)) {
+                                $err = eval { $model->$action(@opts_args) };
+                                if ($@) { $err = $@; }
+                            } else {
+                                $err = "Action $action not found";
+                            }
                             if ($@)   { $err = errgen($@);    goto EXIT; }
                             if ($err) { $err = errgen($err);  goto EXIT; }
                             my $t_elapsed = cpu_time($t_start);
@@ -1073,10 +1086,23 @@ sub readSBML
                     }
     
                     # execute action
-                    my $command = sprintf "\$model->%s(%s);", $action, $options;
+                    require Safe;
+                    my $safe = Safe->new;
+                    $safe->permit(qw(:base_core :base_math :base_mem entereval));
+                    my @opts_args = ();
+                    if (defined $options && $options ne '') {
+                        my $opts = $safe->reval("[$options]");
+                        if ($@) { $err = errgen($@); goto EXIT; }
+                        @opts_args = @$opts if ref $opts eq 'ARRAY';
+                    }
     
                      my $t_start = cpu_time(0);                    
-                    $err = eval $command;
+                    if ($model->can($action)) {
+                        $err = eval { $model->$action(@opts_args) };
+                        if ($@) { $err = $@; }
+                    } else {
+                        $err = "Action $action not found";
+                    }
                     if ($@)   { $err = errgen($@);    goto EXIT; }
                     if ($err) { $err = errgen($err);  goto EXIT; }
                     my $t_elapsed = cpu_time($t_start);
