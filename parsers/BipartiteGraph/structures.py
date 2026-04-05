@@ -148,21 +148,21 @@ class Species:
                                         comp.addState(state,update)
                     
     
-    def updateBonds(self,bondNumbers):
+    def updateBonds(self, bondNumbers):
         newBondNumbers = deepcopy(bondNumbers)
-        correspondence = {}
-        intersection = [int(x) for x in newBondNumbers if x in self.getBondNumbers()]
+        current_bond_numbers = set(str(x) for x in self.getBondNumbers())
+        intersection = [str(x) for x in newBondNumbers if str(x) in current_bond_numbers]
+        if not intersection:
+            return
+
+        intersection_set = set(intersection)
+        new_bond_val = str(max(int(x) for x in intersection) + 1)
+
         for element in self.molecules:
             for component in element.components:
-                for index in range(0,len(component.bonds)):
-                    if int(component.bonds[index]) in intersection:
-                        
-                        if component.bonds[index] in correspondence:
-                            component.bonds[index] = correspondence[component.bonds[index]]
-                        else:
-                            correspondence[component.bonds[index]] = max(intersection) + 1
-                            component.bonds[index] = max(intersection) + 1
-                        #intersection = [int(x) for x in newBondNumbers if x in self.getBondNumbers()]
+                for index in range(0, len(component.bonds)):
+                    if component.bonds[index] in intersection_set:
+                        component.bonds[index] = new_bond_val
     
     def append(self,species):
         newSpecies = (deepcopy(species))
