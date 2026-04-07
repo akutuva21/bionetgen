@@ -943,7 +943,12 @@ sub readSBML
                                 $err = errgen( $err, $lno );
                             }
     
-                            # TODO: validate action                        
+                            if (!$model->can($action))
+                            {
+                                $err = errgen( "Invalid action: $action", $lno );
+                                goto EXIT;
+                            }
+
                             # validate option syntax
                             if ( defined $options and $options !~ /^\s*$/ )
                             {
@@ -1106,6 +1111,11 @@ sub readSBML
 
                     # execute action
                     my $command = sprintf "\$model->%s(%s);", $action, $options;
+                    if (!$model->can($action))
+                    {
+                        $err = errgen( "Invalid action: $action" );
+                        goto EXIT;
+                    }
     
                      my $t_start = cpu_time(0);                    
                     $err = eval $command;
@@ -1734,8 +1744,17 @@ sub setOption
         }
         elsif ( $arg eq "NumberPerQuantityUnit" )
         {   # set conversion from quantity units to pure numbers
-            # TODO: allow this to be a parameter?
-            $model->Options->{$arg} = $val;
+            require Scalar::Util;
+            if ( Scalar::Util::looks_like_number($val) )
+            {   $model->Options->{$arg} = $val;   }
+            else
+            {
+                my ( $param, $err ) = $model->ParamList->lookup($val);
+                if ( defined $param )
+                {   $model->Options->{$arg} = $val;   }
+                else
+                {   return "Invalid value or parameter for $arg: $val";   }
+            }
         }
         elsif ( $arg eq "MoleculesObservables" )
         {   # set molecules observables mode
