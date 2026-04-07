@@ -351,8 +351,18 @@ sub simulate
         		$params->{pla_config} = "fEuler|pre-neg:sb|eps=0.03";
         		send_warning("'pla_config' not defined, using default: $params->{pla_config}");
         }
+
+        # Security validation for pla_config: should not start with -
+        if ($params->{pla_config} =~ /^-/) {
+            return "simulate: Security violation: pla_config cannot start with a hyphen (injection risk).";
+        }
         push @command, $params->{pla_config};
+
         if (defined $params->{pla_output}){
+                # Security validation for pla_output: should not start with -
+                if ($params->{pla_output} =~ /^-/) {
+                    return "simulate: Security violation: pla_output cannot start with a hyphen (injection risk).";
+                }
         		push @command, "--pla_output", $params->{pla_output};
         }
     }
@@ -364,8 +374,18 @@ sub simulate
             $params->{poplevel} = "100";
             send_warning("'poplevel' not defined, using default scaling targert: $params->{poplevel}");
         }
+
+        # Security validation for poplevel: should not start with -
+        if ($params->{poplevel} =~ /^-/) {
+            return "simulate: Security violation: poplevel cannot start with a hyphen (injection risk).";
+        }
         push @command, "--poplevel", $params->{poplevel};
+
         if (exists $params->{check_product_scale}) {
+            # Security validation for check_product_scale: should not start with -
+            if ($params->{check_product_scale} =~ /^-/) {
+                return "simulate: Security violation: check_product_scale cannot start with a hyphen (injection risk).";
+            }
             push @command, "--check_product_scale", $params->{check_product_scale};
         }
     }
@@ -415,8 +435,16 @@ sub simulate
     
     # stop condition
     if ($stop_if){   
+            # Security validation for stop_if: should not start with -
+            if ($stop_if =~ /^-/) {
+                return "simulate: Security violation: stop_if cannot start with a hyphen (injection risk).";
+            }
 	    	push @command, "--stop_cond", $stop_if;
 	    	if ($print_on_stop){
+                # Security validation for print_on_stop: should not start with -
+                if ($print_on_stop =~ /^-/) {
+                    return "simulate: Security violation: print_on_stop cannot start with a hyphen (injection risk).";
+                }
 	    		push @command, $print_on_stop;
 	    	}
 	    	else{
