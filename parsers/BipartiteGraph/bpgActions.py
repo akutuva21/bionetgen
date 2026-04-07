@@ -30,7 +30,7 @@ def cleanstrings(strings):
 		elif item2[0][0] == '#':
 			continue
 		elif item2[0] not in available:
-			print "Line: \'",item,"\' is not an action. Exiting!"
+			print("Line: \'",item,"\' is not an action. Exiting!")
 			exit()
 		allcommands.append(item2)
 	return deque(allcommands)
@@ -159,7 +159,7 @@ def processActions(strings):
 			
 		
 		else:
-			print "Command not found: "+command
+			print("Command not found: "+command)
 			
 		successfullyissued.append(command)	
 	

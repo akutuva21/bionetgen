@@ -27,7 +27,7 @@ def extractMolecules(action,site1,site2,chemicalArray):
     context = set()
     
     #if action=='AddBond':
-    #	print action,chemicalArray
+    #	print(action,chemicalArray)
     for reactant in chemicalArray:
         ta,tr,tc = reactant.extractAtomicPatterns(action,site1,site2)
         #for element in ta:
@@ -61,12 +61,12 @@ def extractTransformations(rules):
     label = []
 
     #for idx,(react,product,act,mapp,nameDict) in enumerate(rules):
-    #	print idx
-	#print "react\t"," ".join([str(x) for x in react])
-	#print "product\t"," ".join([str(x) for x in product])
-	#print "act\t"," ".join([str(x) for x in act])
-	#print "mapp\t"," ".join([str(x) for x in mapp])
-	#print "nameDict\t"," ".join([x+":"+y for x,y in nameDict.items()])
+    #	print(idx)
+	#print("react\t"," ".join([str(x) for x in react]))
+	#print("product\t"," ".join([str(x) for x in product]))
+	#print("act\t"," ".join([str(x) for x in act]))
+	#print("mapp\t"," ".join([str(x) for x in mapp]))
+	#print("nameDict\t"," ".join([x+":"+y for x,y in nameDict.items()]))
     
 		
     for react,product,act,mapp,nameDict in rules:
@@ -172,7 +172,7 @@ def createT2Pmaps(patternDict,transformationDict,transformationCenter,transforma
 			t2pProduct.append([tr_id,patternDict[item]])
 			
 		#for item in pd_list:
-		#	print item
+		#	print(item)
 	#Context is a little harder. Need to pick out the transformations from the list
 	#that match each unique transformation and then add the context
 	
@@ -196,11 +196,11 @@ def createTransformationPairs(t2pReactant,t2pProduct,t2pContext):
 	for tr in tr_id_list:
 		r = [y for x,y in t2pReactant if x==tr]
 		p = [y for x,y in t2pProduct if x==tr]
-		#print r,p
+		#print(r,p)
 		
 		reactDict[tr] = r
 		prodDict[tr] = p
-		#print tr,reactDict[tr],prodDict[tr]
+		#print(tr,reactDict[tr],prodDict[tr])
 	trPairs = []
 	tr_id_list = deque(tr_id_list)
 	
@@ -208,9 +208,9 @@ def createTransformationPairs(t2pReactant,t2pProduct,t2pContext):
 	#	tr1 = tr_id_list.popleft()
 	#	for tr2 in tr_id_list:
 	#		if prodDict[tr1] == reactDict[tr2]:
-	#			print tr1,tr2
+	#			print(tr1,tr2)
 	#		if reactDict[tr1] == prodDict[tr2]:
-	#			print tr1,tr2
+	#			print(tr1,tr2)
 	
 
 		#tr_id2 = [x for x in tr_id_list if (prodDict[tr_id1]==reactDict[x] and reactDict[tr_id1] == prodDict[x])][0]
@@ -225,7 +225,7 @@ def sortTransformationPairs(trPairs,transformationDict):
 	for tr1,tr2 in trPairs:
 		lhs = tDict[tr1][0]
 		rhs = tDict[tr1][1]
-		print len(lhs),len(rhs)	
+		print(len(lhs),len(rhs)	)
 
 	return trPairs
 
@@ -353,7 +353,7 @@ def writeNewAnnotationFiles(atomicArray,transformationCenter,patternDict,transfo
 	for idx,item in enumerate(transformationCenter):
     		key =tuple([ tuple(transformationCenter[idx]),tuple(productElements[idx]) ])
 		transformationAnnotations[key] = None
-	print "Overwriting annotation files..."
+	print("Overwriting annotation files...")
 	writeAnnotationFiles(atomicPatternAnnotations,transformationAnnotations,patternDict,transformationDict)
 	return atomicPatternAnnotations, transformationAnnotations
 			
@@ -419,13 +419,13 @@ def writeDot(patternDict,transformationDict,atomicPatternAnnotations,transformat
 		#n_reactants = len(patternDict.keys())
 		#n_transforms = len(transformationDict.keys())
 		#n_nodes_to_leave = int(ceil((n_reactants - n_transforms)/2))
-		#print n_reactants, n_transforms, n_nodes_to_leave
+		#print(n_reactants, n_transforms, n_nodes_to_leave)
 		
 		patt_id_list = [x for patt,x in sorted(patternDict.items())]
 		tr_id_list = [x for tr,x in sorted(transformationDict.items())]
 		#for idx, item in enumerate(tr_id_list):
 		#	f.write('{ rank = same; \"r'+ str(patt_id_list[n_nodes_to_leave+idx]) + '\"; \"t' + str(tr_id_list[idx]) + '\"; }\n')
-			#print idx
+			#print(idx)
 				
 			
 		
@@ -473,22 +473,22 @@ def getRuleString(trans):
 
 def printList(list1):
 	for item in list1:
-		print item
+		print(item)
 		
 def printDict(dict1):
 	#getting max size for column1
 	maxsize = max([len(str(item)) for item in dict1.keys()])
 	for key,val in dict1.iteritems():
-		print '%-*s\t%s' %(maxsize,str(key),str(val))
+		print('%-*s\t%s' %(maxsize,str(key),str(val)))
 
 def createXML(self):
     pass
 
 def getStats(rules,patternDict,transformationDict):
-	print "\n\n"
-	print "Number of rules: ",len(rules)
-	print "Number of transformations: ", len(transformationDict)
-	print "Number of atomic patterns: ", len(patternDict)
+	print("\n\n")
+	print("Number of rules: ",len(rules))
+	print("Number of transformations: ", len(transformationDict))
+	print("Number of atomic patterns: ", len(patternDict))
 
 
 #biograph-matlab
@@ -545,7 +545,7 @@ if __name__ == "__main__":
 		# This lets you create new empty annotation files
 		if args.mode=='annotate':
 			getStats(rules,patternDict,transformationDict)
-			print "\n\nAnnotate mode."
+			print("\n\nAnnotate mode.")
 			if args.verbose:
 				tempstr = raw_input('This will overwrite any existing annotation files. Proceed? Y/N\t')
 				if(tempstr == 'y' or tempstr== 'Y'):
@@ -571,13 +571,13 @@ if __name__ == "__main__":
 		if args.mode=='graph':
 			getStats(rules,patternDict,transformationDict)
 			
-			print "\n\nGraphing mode."
+			print("\n\nGraphing mode.")
 			if os.path.isfile('atomicPatternAnnotations.txt') and os.path.isfile('transformationAnnotations.txt'):
 				atomicPatternAnnotations, transformationAnnotations = readAnnotationFiles(patternDict,transformationDict)
 			else:
-				print "Annotations not found. Generating empty templates. Edit them with your favorite text editor."
+				print("Annotations not found. Generating empty templates. Edit them with your favorite text editor.")
 				if args.use_annot:
-					print "Use-annot will be disabled. Use annotate mode to create empty editable templates."
+					print("Use-annot will be disabled. Use annotate mode to create empty editable templates.")
 					args.use_annot = False;
 			if args.filter:
 				if not args.level:
@@ -605,11 +605,11 @@ if __name__ == "__main__":
 							patlist.update([item])
     							
 						
-				print patlist
+				print(patlist)
 				pat_ids = [patternDict[x] for x in patlist]
 				
 				for lev in xrange(0,itermax+1):
-					print lev
+					print(lev)
 						
 			
 			options_string = ''
@@ -622,25 +622,25 @@ if __name__ == "__main__":
 				options_string = options_string + 'c'
 			if not args.no_p:
 				options_string = options_string + 'p'
-			print "Generating dot file."
+			print("Generating dot file.")
 			writeDot(patternDict,transformationDict,atomicPatternAnnotations,transformationAnnotations,t2pReactant, t2pProduct, t2pContext,options_string)
 			
 		
 		
 		if args.mode=='summarize':
 			getStats(rules,patternDict,transformationDict)
-			print "\n\nSummarize mode."
-			print "Generating model summary"
+			print("\n\nSummarize mode.")
+			print("Generating model summary")
 			if os.path.isfile('atomicPatternAnnotations.txt') and os.path.isfile('transformationAnnotations.txt'):
 				atomicPatternAnnotations, transformationAnnotations = readAnnotationFiles(patternDict,transformationDict)
 				
 			else:
-				print "Annotations not found. Cannot summarize. Use annotate mode to create empty templates and edit them with your favorite text editor."
+				print("Annotations not found. Cannot summarize. Use annotate mode to create empty templates and edit them with your favorite text editor.")
 				sys.exit()
 			atomicPatternAnnotations, transformationAnnotations = readAnnotationFiles(patternDict,transformationDict)
 			summarizeModel(patternDict,transformationDict,atomicPatternAnnotations,transformationAnnotations,t2pContext)
 		
 					
 	else:
-		print "Something wrong with reading bngxml file"
+		print("Something wrong with reading bngxml file")
 		sys.exit()

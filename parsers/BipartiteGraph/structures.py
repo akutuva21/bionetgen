@@ -464,7 +464,7 @@ class Component:
             self.states.append(state)
         if update:
             self.setActiveState(state)
-        #print 'LALALA',state
+        #print('LALALA',state)
     def addStates(self,states,update=True):
         for state in states:
             if state not in self.states:
