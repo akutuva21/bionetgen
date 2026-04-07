@@ -65,3 +65,9 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 link_libraries(libmathutils.a libmuparser.a libsundials_cvode.a libsundials_nvecserial.a)
 
 add_executable(run_network ${SRC_FILES})
+
+add_executable(test_run_network src/test_run_network.cpp)
+target_compile_definitions(test_run_network PRIVATE RUN_NETWORK_BIN="${CMAKE_CURRENT_BINARY_DIR}/run_network")
+
+enable_testing()
+add_test(NAME test_run_network COMMAND test_run_network)
