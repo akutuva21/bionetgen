@@ -1,1 +1,1 @@
-../SBMLparser/stats/readBNGXML.py
+../utils/readBNGXML.py
