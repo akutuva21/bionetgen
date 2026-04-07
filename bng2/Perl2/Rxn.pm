@@ -136,13 +136,46 @@ sub get_intensive_to_extensive_units_conversion
         my @surfaces = ( grep {$_->SpatialDimensions==2} @reactant_compartments );
         my @volumes  = ( grep {$_->SpatialDimensions==3} @reactant_compartments );
       
-        if (@surfaces) 
-        {   # TODO: check for consistency for both
-            $comp_name = @surfaces[0]->Name;
-        }
-        elsif (@volumes)
+        my $consistent = 1;
+
+        if (@surfaces > 1)
         {
-            $comp_name = @volumes[0]->Name;
+            my $comp1 = $surfaces[0];
+            foreach my $comp2 ( @surfaces[1..$#surfaces] )
+            {
+                unless ($comp1 == $comp2)
+                {
+                    $consistent = 0;
+                    send_warning("BioNetGen doesn't know how to handle reactions with reactants in multiple surface compartments.");
+                    last;
+                }
+            }
+        }
+
+        if (@volumes > 1)
+        {
+            my $comp1 = $volumes[0];
+            foreach my $comp2 ( @volumes[1..$#volumes] )
+            {
+                unless ($comp1 == $comp2)
+                {
+                    $consistent = 0;
+                    send_warning("BioNetGen doesn't know how to handle reactions with reactants in multiple volume compartments.");
+                    last;
+                }
+            }
+        }
+
+        if ($consistent)
+        {
+            if (@surfaces)
+            {
+                $comp_name = $surfaces[0]->Name;
+            }
+            elsif (@volumes)
+            {
+                $comp_name = $volumes[0]->Name;
+            }
         }
         # Pick and toss an anchor reactant.  If there's a surface reactant, toss it.
         # Otherwise toss a volume.
