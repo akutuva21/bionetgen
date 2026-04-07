@@ -77,8 +77,7 @@ FetchContent_MakeAvailable(Catch2)
 
 add_executable(run_network_test src/test_run_network.cpp)
 target_link_libraries(run_network_test PRIVATE Catch2::Catch2WithMain)
-# Set the working directory for the test so that it can find the run_network executable
-# which is built in the same output directory (${CMAKE_CURRENT_BINARY_DIR}).
+target_compile_definitions(run_network_test PRIVATE BIN_PATH="${CMAKE_CURRENT_BINARY_DIR}/run_network")
 
 enable_testing()
 add_test(NAME run_network_test

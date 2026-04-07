@@ -5,6 +5,9 @@
 #include <string>
 #include <sstream>
 
+#define XSTR(x) STR(x)
+#define STR(x) #x
+
 // We can test this by running the executable with < 4 arguments (or with an unknown argument but the < 4 check calls print_error directly)
 
 TEST_CASE("print_error usage output and exit code", "[run_network][print_error]") {
@@ -20,9 +23,9 @@ TEST_CASE("print_error usage output and exit code", "[run_network][print_error]"
         dup2(pipefd[1], STDERR_FILENO);
         close(pipefd[1]);
 
-        // execl with run_network in PATH, but we'll use the absolute path
-        // to ensure it can be found. In our cmake setup it runs from bin dir.
-        execl("./run_network", "./run_network", NULL);
+        // execl with run_network using the absolute path provided by CMake
+        const char* binary_path = "./run_network";
+        execl(binary_path, binary_path, NULL);
 
         exit(127); // If execl fails
     } else {
