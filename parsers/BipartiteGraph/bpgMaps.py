@@ -570,24 +570,43 @@ def getLevels(start,end,names,all_maps):
 	# First round of assigning levels to transformation pairs
 	tp_levels = dict()
 	maps = all_maps.tp.tp2p_forwardreactant+all_maps.tp.tp2p_reversereactant+all_maps.tp.tp2p_delcontext+all_maps.tp.tp2p_syncontext
-	for tp in [x for x in names.tp.values() if x not in tp_levels.keys()]:
-		possiblelevels = [p_levels[y] for x,y in maps if x==tp if y in p_levels.keys()]
-		if len(possiblelevels)>0:
-			if max(p_levels.values()) in possiblelevels:
-				tp_levels[tp] = max(p_levels.values())-1
-			elif min(p_levels.values()) in possiblelevels:
-				tp_levels[tp] = min(p_levels.values())
+
+	p_levels_max = max(p_levels.values()) if p_levels else None
+	p_levels_min = min(p_levels.values()) if p_levels else None
+
+	import collections
+	map_dict = collections.defaultdict(list)
+	for x, y in maps:
+		if y in p_levels:
+			map_dict[x].append(p_levels[y])
+
+	for tp in names.tp.values():
+		if tp in tp_levels: continue
+		possiblelevels = map_dict.get(tp, [])
+		if possiblelevels:
+			if p_levels_max in possiblelevels:
+				tp_levels[tp] = p_levels_max - 1
+			elif p_levels_min in possiblelevels:
+				tp_levels[tp] = p_levels_min
 			else:
 				tp_levels[tp] = min(possiblelevels)
+
 	irr_levels = dict()
 	maps2 = all_maps.t.t2p_reactant+all_maps.t.t2p_product+all_maps.t.t2p_syndelcontext
-	for irr in [x for x in names.irr.values() if x not in irr_levels.keys()]:
-		possiblelevels = [p_levels[y] for x,y in maps2 if x==irr if y in p_levels.keys()]
-		if len(possiblelevels)>0:
-			if max(p_levels.values()) in possiblelevels:
-				irr_levels[irr] = max(p_levels.values())-1
-			elif min(p_levels.values()) in possiblelevels:
-				irr_levels[irr] = min(p_levels.values())
+
+	map2_dict = collections.defaultdict(list)
+	for x, y in maps2:
+		if y in p_levels:
+			map2_dict[x].append(p_levels[y])
+
+	for irr in names.irr.values():
+		if irr in irr_levels: continue
+		possiblelevels = map2_dict.get(irr, [])
+		if possiblelevels:
+			if p_levels_max in possiblelevels:
+				irr_levels[irr] = p_levels_max - 1
+			elif p_levels_min in possiblelevels:
+				irr_levels[irr] = p_levels_min
 			else:
 				irr_levels[irr] = min(possiblelevels)
 			
