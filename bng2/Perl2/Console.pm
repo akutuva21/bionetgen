@@ -154,7 +154,6 @@ sub BNGconsole
                 }
 		    	
                 # define action
-                my $command = '$model->' . $action . '(' . $options . ');';
                 print "Begin action $action\n";
     
 	            # Perform self-consistency checks before operations are performed on model
@@ -170,10 +169,23 @@ sub BNGconsole
                 # execute action
                 my $t_start = cpu_time(0);
                 {
-		    	    my $err = eval $command;
-                    if ($@)
-                    {
-                        send_warning("Problem executing action: $@.");
+                    my $err;
+                    if ($model->can($action)) {
+                        my $cpt = Safe->new;
+                        $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
+                        my @eval_opts = $cpt->reval("($options)");
+                        if ($@) {
+                            send_warning("Problem evaluating options for action '$action': $@.");
+                            last PROCESS_INPUT;
+                        } else {
+                            $err = eval { $model->$action(@eval_opts) };
+                            if ($@) {
+                                send_warning("Problem executing action: $@.");
+                                last PROCESS_INPUT;
+                            }
+                        }
+                    } else {
+                        send_warning("Action '$action' is not recognized.");
                         last PROCESS_INPUT;
                     }
                     if ($err)

@@ -40,6 +40,8 @@ sub simulate_protocol
     print "\n\nexecuting $num_commands commands in protocol\n\n";
 
     my $err;
+    my $cpt = Safe->new;
+    $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
 
     for(my $k=0;$k<$num_commands;$k++)
     {
@@ -50,8 +52,6 @@ sub simulate_protocol
         if(index($action,"simulate") != -1)
         {
             # SECURITY: Use Safe->reval instead of eval to prevent arbitrary code execution
-            my $cpt = Safe->new;
-            $cpt->permit(qw(:base_core :base_math :base_mem entereval));
             my $hash_opts_ref = $cpt->reval($options);
             if ($@) { die "Error parsing simulate options: $@"; }
             #modifying hash with local prefix
@@ -64,11 +64,21 @@ sub simulate_protocol
         else
         {
             $modified_options = $options;
-            my $command = sprintf "\$model->%s(%s);", $action, $modified_options;
             my $t_start = cpu_time(0);
-            $err = eval $command;
-            #if ($@)   { $err = errgen($@);    goto EXIT; }
-            #if ($err) { $err = errgen($err);  goto EXIT; }
+
+            # SECURITY: prevent arbitrary code execution
+            if ($model->can($action)) {
+                my @eval_opts = $cpt->reval("($modified_options)");
+                if ($@) {
+                    $err = "Problem evaluating options for action '$action': $@";
+                } else {
+                    $err = eval { $model->$action(@eval_opts) };
+                    if ($@) { $err = "Problem executing action '$action': $@"; }
+                }
+            } else {
+                $err = "Action '$action' is not recognized.";
+            }
+
             my $t_elapsed = cpu_time($t_start);
             printf "CPU TIME: %s %.2f s.\n", $action, $t_elapsed;
         }

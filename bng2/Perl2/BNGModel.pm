@@ -229,6 +229,8 @@ sub readSBML
     my $t_start;
     my $stdout_handle;
 
+    my $cpt_cache;
+
     sub readFile
     {
         # get arguments
@@ -954,10 +956,22 @@ sub readSBML
                             }
     
                             # execute action        
-                            my $command = sprintf "\$model->%s(%s);", $action, $options;
                             my $t_start = cpu_time(0);
-                            $err = eval $command;
-                            if ($@)   { $err = errgen($@);    goto EXIT; }
+                            if ($model->can($action)) {
+                                $cpt_cache ||= Safe->new;
+                                $cpt_cache->permit(qw(:base_core :base_math :base_mem entereval method));
+                                my @eval_opts = $cpt_cache->reval("($options)");
+                                if ($@) {
+                                    $err = errgen("Problem evaluating options for action '$action': $@");
+                                    goto EXIT;
+                                } else {
+                                    $err = eval { $model->$action(@eval_opts) };
+                                    if ($@) { $err = errgen("Problem executing action '$action': $@"); goto EXIT; }
+                                }
+                            } else {
+                                $err = errgen("Action '$action' is not recognized.");
+                                goto EXIT;
+                            }
                             if ($err) { $err = errgen($err);  goto EXIT; }
                             my $t_elapsed = cpu_time($t_start);
                             printf "CPU TIME: %s %.2f s.\n", $action, $t_elapsed;
@@ -1032,9 +1046,21 @@ sub readSBML
                     {  $err = errgen($err);  goto EXIT;  }
     
                     # call to methods associated with $model
-                    my $command = '$model->' . $action . '(' . $options . ');';
-                    $err = eval $command;
-                    if ($@)   {  $err = errgen($@);    goto EXIT;  }
+                    if ($model->can($action)) {
+                        $cpt_cache ||= Safe->new;
+                        $cpt_cache->permit(qw(:base_core :base_math :base_mem entereval method));
+                        my @eval_opts = $cpt_cache->reval("($options)");
+                        if ($@) {
+                            $err = errgen("Problem evaluating options for action '$action': $@");
+                            goto EXIT;
+                        } else {
+                            $err = eval { $model->$action(@eval_opts) };
+                            if ($@) { $err = errgen("Problem executing action '$action': $@"); goto EXIT; }
+                        }
+                    } else {
+                        $err = errgen("Action '$action' is not recognized.");
+                        goto EXIT;
+                    }
                     if ($err) {  $err = errgen($err);  goto EXIT;  }
                 }
     
@@ -1073,11 +1099,22 @@ sub readSBML
                     }
     
                     # execute action
-                    my $command = sprintf "\$model->%s(%s);", $action, $options;
-    
-                     my $t_start = cpu_time(0);                    
-                    $err = eval $command;
-                    if ($@)   { $err = errgen($@);    goto EXIT; }
+                    my $t_start = cpu_time(0);
+                    if ($model->can($action)) {
+                        $cpt_cache ||= Safe->new;
+                        $cpt_cache->permit(qw(:base_core :base_math :base_mem entereval method));
+                        my @eval_opts = $cpt_cache->reval("($options)");
+                        if ($@) {
+                            $err = errgen("Problem evaluating options for action '$action': $@");
+                            goto EXIT;
+                        } else {
+                            $err = eval { $model->$action(@eval_opts) };
+                            if ($@) { $err = errgen("Problem executing action '$action': $@"); goto EXIT; }
+                        }
+                    } else {
+                        $err = errgen("Action '$action' is not recognized.");
+                        goto EXIT;
+                    }
                     if ($err) { $err = errgen($err);  goto EXIT; }
                     my $t_elapsed = cpu_time($t_start);
                     printf "CPU TIME: %s %.2f s.\n", $action, $t_elapsed;
