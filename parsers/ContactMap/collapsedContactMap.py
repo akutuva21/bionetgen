@@ -124,7 +124,7 @@ def createCollapsedContact(rules,species,transformations,fileName):
 
         atomicArray, transformationCenter, transformationContext, productElements,actionName,label =  extractSingleTransformation(rule)
 
-        for idx in xrange(len(rule.actions)):
+        for idx in range(len(rule.actions)):
             if rule.actions[idx].action in ['Add','Delete']:
                 nonatomicset = True
             elif rule.actions[idx].action in ['AddBond']:
