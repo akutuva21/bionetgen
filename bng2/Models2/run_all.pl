@@ -24,6 +24,8 @@ my $bngexec;
 
 # get all BNGL files
 my @files = <*.bngl>;
+# prepend current directory to prevent argument injection
+@files = map { File::Spec->catfile(File::Spec->curdir(), $_) } @files;
 
 # run BNG on all files
 my @command = ($perlbin, $bngexec, "--log", @files);
