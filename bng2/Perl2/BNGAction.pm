@@ -878,16 +878,7 @@ sub simulate_nf
 
     # append other command line arguments not recognized by BNG
     if ( defined $params->{param} )
-    {
-        my @extra_args = split " ", $params->{param};
-        foreach my $arg (@extra_args) {
-            # Prevent parameter injection: do not allow unintended flags starting with '-'
-            if ($arg =~ /^-/) {
-                die "Security Error: Parameter injection detected. User-provided parameters cannot start with '-' in simulate_nf(): '$arg'";
-            }
-        }
-        push @args, @extra_args;
-    }
+    {  push @args, split " ", $params->{param};  }
 
     # exit here if we're not executing
     return '' if $BNGModel::NO_EXEC;
