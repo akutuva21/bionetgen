@@ -143,8 +143,20 @@ std::string
 NodeType::get_BNG2_string ( bool instance ) const
 {
     std::stringstream s;
-    // TODO: implement non-instance version    
     s << get_label();
+
+    if ( !instance )
+    {
+        const LabelStateType* lst = dynamic_cast<const LabelStateType*>(&get_state_type());
+        if (lst) {
+            const std::set<std::string>& states = lst->get_states();
+            for (std::set<std::string>::const_iterator it = states.begin(); it != states.end(); ++it) {
+                if (*it != "?") {
+                    s << "~" << *it;
+                }
+            }
+        }
+    }
     return s.str();
 }
 
@@ -171,8 +183,32 @@ std::string
 EntityType::get_BNG2_string ( bool instance ) const
 {
     std::stringstream s;
-    // TODO: implement non-instance version
-    s << get_label();
+    s << NodeType::get_BNG2_string(instance);
+
+    if ( !instance )
+    {
+        bool found_entity_child = false;
+        std::stringstream t;
+
+        for (typemap_const_iter_t it = edges_out_begin(); it != edges_out_end(); ++it) {
+            NodeType* child_type = it->first;
+            if (*child_type < ENTITY_NODE_TYPE) {
+                const ConstantNodeFunction* cnf = dynamic_cast<const ConstantNodeFunction*>(it->second);
+                int mult = 1;
+                if (cnf) mult = cnf->get_value();
+
+                for (int i = 0; i < mult; ++i) {
+                    if (found_entity_child) t << ",";
+                    t << child_type->get_BNG2_string(false);
+                    found_entity_child = true;
+                }
+            }
+        }
+        if (found_entity_child) {
+            s << "(" << t.str() << ")";
+        }
+    }
+
     return s.str();
 } 
 

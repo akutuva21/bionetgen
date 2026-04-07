@@ -187,6 +187,7 @@ namespace BNGcore
             bool  add_state ( const std::string & state );
             // check a label_state is valid
             virtual bool  check_state ( const std::string & state ) const;
+            const std::set < std::string >& get_states() const { return states; }
             
         protected:
             const std::string            default_state;
@@ -893,7 +894,8 @@ namespace BNGcore
             virtual ConstantNodeFunction * clone ( ) const { return new ConstantNodeFunction(*this); };                      
             virtual ~ConstantNodeFunction ( ) { };
             virtual int  map ( const Node & node ) const { return value; };
-            virtual int  map ( const Node & node1, const Node & node2 ) const { return value; };            
+            virtual int  map ( const Node & node1, const Node & node2 ) const { return value; };
+            int get_value() const { return value; }
         private:
             const int  value;
     };
