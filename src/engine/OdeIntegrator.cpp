@@ -31,6 +31,21 @@ namespace bng::engine {
 
 namespace {
 
+// Helper to check if a word exists as a whole word in a string
+bool containsWord(const std::string& text, const std::string& word) {
+    if (word.empty()) return false;
+    std::size_t pos = 0;
+    while ((pos = text.find(word, pos)) != std::string::npos) {
+        bool leftOk = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
+        bool rightOk = (pos + word.length() == text.length()) || (!std::isalnum(static_cast<unsigned char>(text[pos + word.length()])) && text[pos + word.length()] != '_');
+        if (leftOk && rightOk) {
+            return true;
+        }
+        pos += word.length();
+    }
+    return false;
+}
+
 // Recursive expression evaluator for rate strings.
 // Handles: numbers, parameters, +, -, *, /, (), and nested expressions.
 double evaluateRateString(const std::string& rateStr,
@@ -447,8 +462,8 @@ void OdeIntegrator::compile() {
                     const auto& fname = func.getName();
                     std::string fnameLower = fname;
                     std::transform(fnameLower.begin(), fnameLower.end(), fnameLower.begin(), ::tolower);
-                    if (rateLawLower.find(fnameLower) != std::string::npos ||
-                        rawRL.find(fname) != std::string::npos) {
+                    if (containsWord(rateLawLower, fnameLower) ||
+                        containsWord(rawRL, fname)) {
                         isFunctional = true;
                         matchedFuncName = fname;
                         break;
@@ -487,7 +502,7 @@ void OdeIntegrator::compile() {
             for (const auto& func : model_.getFunctions()) {
                 std::string fnameLow = func.getName();
                 std::transform(fnameLow.begin(), fnameLow.end(), fnameLow.begin(), ::tolower);
-                if (rlLow.find(fnameLow) != std::string::npos) {
+                if (containsWord(rlLow, fnameLow) || containsWord(rawRL, func.getName())) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
