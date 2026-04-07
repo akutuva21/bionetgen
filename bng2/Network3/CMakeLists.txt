@@ -42,6 +42,8 @@ aux_source_directory(src/pla/eRungeKutta/util eRK_util_files)
 aux_source_directory(src/util/MTrand mtrand_files)
 aux_source_directory(src/util/rand2 rand2_files)
 
+list(REMOVE_ITEM src_files "src/test_run_network.cpp")
+
 set(SRC_FILES 
     ${src_files} 
     ${model_files} 

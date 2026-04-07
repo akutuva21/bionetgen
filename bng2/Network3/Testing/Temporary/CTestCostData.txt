@@ -1,2 +1,2 @@
-test_run_network 1 0.00443476
+test_run_network 2 0.00336114
 ---
