@@ -86,3 +86,7 @@ add_subdirectory(src)
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt)
     add_subdirectory(tests)
 endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bng2/Validate/DAT_validate/tests/CMakeLists.txt)
+    add_subdirectory(bng2/Validate/DAT_validate/tests)
+endif()
