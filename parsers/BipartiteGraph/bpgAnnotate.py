@@ -53,7 +53,7 @@ class Annotation:
 				assert current_annot_type != '',"Need a section head"
 				assert current_annot_type in opts, "Bad section head for annotations: "+current_annot_type+ ". Only use "+"/".join(opts)
 				self.updateDict(current_annot_type,current_line,names)
-		#print self.p,self.tp
+		#print(self.p,self.tp)
 
 
 
@@ -81,10 +81,10 @@ class Annotation:
 			self.r[relevant_r]=linesplit[1].strip()
 			
 	def __str__(self):
-		print self.r
-		print self.p
-		print self.t
-		print self.tp
+		print(self.r)
+		print(self.p)
+		print(self.t)
+		print(self.tp)
 		return "\n"
 
 

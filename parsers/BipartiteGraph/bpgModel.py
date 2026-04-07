@@ -330,7 +330,7 @@ class AtomizedRule:
 			c_idxlist_tr = [c for c in choppedrule.transf_center[idx] if '_RP' in c]
 			#get components for "other" transformations
 			c_idxlist_other = [c for idx2 in range(len(choppedrule.transf_center)) for c in choppedrule.transf_center[idx2] if ('_RP' in c and idx2 != idx)]
-			#print tr.action,c_idxlist_tr,c_idxlist_other
+			#print(tr.action,c_idxlist_tr,c_idxlist_other)
 			
 			# for the component in "this" state transformation, pick out its bond patterns unless they were modified in the "other" transformations
 			if tr.action == 'StateChange':
@@ -558,12 +558,12 @@ def getAtomizedRules(bngxml):
 	'''
 	_,rules = readBNGXML.parseXML(bngxml)
 
-	print "\nChopping and atomizing rules..."
+	print("\nChopping and atomizing rules...")
 	atomizedrules = []
 	for idx, [reactants, products, actions, mappings, nameDict] in enumerate(rules):
 		choppedrule = chopRule(reactants, products, actions, mappings, nameDict)
 		atomizedrules.append(AtomizedRule(choppedrule,reactants,products))
-	print len(atomizedrules), "rules atomized."
+	print(len(atomizedrules), "rules atomized.")
 	return atomizedrules
 	
 def getElements(atomizedrules):
@@ -572,7 +572,7 @@ def getElements(atomizedrules):
 	'''
 	patterns = set()
 	transformations = set()
-	print "\nExtracting basic patterns and transformations..."
+	print("\nExtracting basic patterns and transformations...")
 	for rule in atomizedrules:
 		transformations.update(rule.transformations)
 		for tr in rule.transformations:
@@ -587,8 +587,8 @@ def getElements(atomizedrules):
 	syndels = [x for x in transformations if x.isSynDel()]
 	molecpats = [x for x in patterns if x.isMolecule()]
 
-	print len(transformations),"transformations found ("+str(len(syndels)),"are syndels)."
-	print len(patterns),"basic patterns constructed, ("+str(len(molecpats)),"in syndels)."
+	print(len(transformations),"transformations found ("+str(len(syndels)),"are syndels).")
+	print(len(patterns),"basic patterns constructed, ("+str(len(molecpats)),"in syndels).")
 	
 	return patterns,transformations
 	
@@ -597,5 +597,5 @@ if __name__ == "__main__":
 	atomizedrules = getAtomizedRules(sys.argv[-1])
 	patterns,transformations = getElements(atomizedrules)
 	for item in atomizedrules:
-		print item
+		print(item)
 	

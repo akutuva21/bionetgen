@@ -81,7 +81,7 @@ def getTransformationPairs(transformations,tprules):
 	'''
 	Constructs transformation pairs from transformations, sorted using provided rules
 	'''
-	print "\nIdentifying transformation pairs..."
+	print("\nIdentifying transformation pairs...")
 	tprules2 = processTransformationPairRules(tprules)
 	tp = [x for x in itertools.combinations(transformations,2) if (x[0].lhs==x[1].rhs and x[0].rhs==x[1].lhs)]
 	tp2 = []
@@ -103,8 +103,8 @@ def getTransformationPairs(transformations,tprules):
 	tp2 = set(tp2)
 	irrev = set(irrev)
 	
-	print len(tp2),"transformation pairs found."
-	print len(irrev),"irreversible transformations found."
+	print(len(tp2),"transformation pairs found.")
+	print(len(irrev),"irreversible transformations found.")
 	return tp2,irrev
 	
 # Classes and methods for handling names and ids of rules, patterns, transformations and transformation pairs
@@ -178,7 +178,7 @@ def getNameDictionary(atomizedrules,patterns,transformations,transformationpairs
 	Takes atomized rules, patterns, transformations and transformation pairs
 	returns dictionaries of rules, patterns, transformations, transformation pairs
 	'''
-	print "\nBuilding dictionaries of unique elements..."
+	print("\nBuilding dictionaries of unique elements...")
 	#dictRules,dictPatterns,dictTransformations,dictTransformationPairs = getNameDictionaries(atomizedrules,patterns,transformations,transformationpairs)
 	names = NameDictionary(atomizedrules,patterns,transformations,transformationpairs,irreversibles)
 	return names
@@ -318,7 +318,7 @@ class allMaps:
 			return self.getFlow(['t','p'],idx_list)
 			
 		else:
-			print "Bad Type Vector!"
+			print("Bad Type Vector!")
 			return None
 
 	def getFlux(self,type_vector,idx_list):
@@ -399,30 +399,30 @@ def getMaps(names,verbose):
 	'''
 	
 	
-	print "Building maps between elements..."
+	print("Building maps between elements...")
 
 	rule_map = RuleMap(names)
 	if(verbose):
-		print "\nMaps to reaction rules:"
-		print "There are",len(rule_map.r2t),"maps to transformations,"
-		print len(rule_map.r2p_transfcenter),"maps from patterns to reaction centers,"
-		print len(rule_map.r2p_context),"maps from patterns to reaction contexts, and"
-		print len(rule_map.r2p_syndelcontext),"maps from patterns that are syndel contexts."
+		print("\nMaps to reaction rules:")
+		print("There are",len(rule_map.r2t),"maps to transformations,")
+		print(len(rule_map.r2p_transfcenter),"maps from patterns to reaction centers,")
+		print(len(rule_map.r2p_context),"maps from patterns to reaction contexts, and")
+		print(len(rule_map.r2p_syndelcontext),"maps from patterns that are syndel contexts.")
 	
 	tr_map = TransformationMap(names,rule_map)
 	if verbose:
-		print "\nMaps to transformations:"
-		print "There are",len(tr_map.t2p_reactant),"maps from reactant patterns,"
-		print len(tr_map.t2p_product),"maps from product patterns,"
-		print len(tr_map.t2p_context),"maps from context patterns, and"
-		print len(tr_map.t2p_syndelcontext),"maps from patterns that are syndel contexts."
+		print("\nMaps to transformations:")
+		print("There are",len(tr_map.t2p_reactant),"maps from reactant patterns,")
+		print(len(tr_map.t2p_product),"maps from product patterns,")
+		print(len(tr_map.t2p_context),"maps from context patterns, and")
+		print(len(tr_map.t2p_syndelcontext),"maps from patterns that are syndel contexts.")
 	
 	trpair_map = TransformationPairMap(names,tr_map)
 	if verbose:
-		print "\nMaps to transformation pairs:"
-		print "There are",len(trpair_map.tp2p_forwardreactant),"forward reactant patterns and",len(trpair_map.tp2p_reversereactant),"reverse reactant patterns,"
-		print len(trpair_map.tp2p_forwardcontext),"forward context patterns and",len(trpair_map.tp2p_reversecontext),"reverse context patterns, and"
-		print len(trpair_map.tp2p_syncontext),"synthesis context patterns and",len(trpair_map.tp2p_delcontext),"deletion context patterns."
+		print("\nMaps to transformation pairs:")
+		print("There are",len(trpair_map.tp2p_forwardreactant),"forward reactant patterns and",len(trpair_map.tp2p_reversereactant),"reverse reactant patterns,")
+		print(len(trpair_map.tp2p_forwardcontext),"forward context patterns and",len(trpair_map.tp2p_reversecontext),"reverse context patterns, and")
+		print(len(trpair_map.tp2p_syncontext),"synthesis context patterns and",len(trpair_map.tp2p_delcontext),"deletion context patterns.")
 	
 	
 	
@@ -550,9 +550,9 @@ def getLevels(start,end,names,all_maps):
 	triplets1 = all_maps.getTriplets(['p','tp','p'])
 	triplets2 = all_maps.getTriplets(['p','irr','p'])
 	triplets = triplets1 + triplets2
-	print "Getting forward traces for patterns..."
+	print("Getting forward traces for patterns...")
 	[p_fwd,p_fwd_bad] = getTraces(start,end,triplets,'p',names)
-	print "Getting reverse traces for patterns..."
+	print("Getting reverse traces for patterns...")
 	[p_rev,p_rev_bad] = getTraces(end,start,triplets,'p',names)
 	
 	# Collect and sort traces
@@ -672,14 +672,14 @@ def graphData(names,levels,all_maps):
 				dict1 = {'source':getCounter('irr',t),'target':getCounter('p',p),'type':'syncontext','linktype':'t2p'}
 			edge_list.append(dict1)	
 		
-	#print json.dumps({'nodes':node_list,'edges':edge_list},separators=(',', ':'))
+	#print(json.dumps({'nodes':node_list,'edges':edge_list},separators=(',', ':')))
 	with open("bpg.json","w") as f:
 		f.write(json.dumps({'nodes':node_list,'edges':edge_list},indent=1,separators=(',', ':')))
 	f.close()
-	#print json.dumps(node_list,indent=3,separators=('{'))
+	#print(json.dumps(node_list,indent=3,separators=('{')))
 	#
  
-	#print json.dumps(tempstring,separators=(',',':'))
+	#print(json.dumps(tempstring,separators=(',',':')))
 	
 def makeFlow(names,all_maps,start,end):
 	'''
