@@ -65,3 +65,22 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 link_libraries(libmathutils.a libmuparser.a libsundials_cvode.a libsundials_nvecserial.a)
 
 add_executable(run_network ${SRC_FILES})
+
+# --- Add test target ---
+include(FetchContent)
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v3.4.0
+)
+FetchContent_MakeAvailable(Catch2)
+
+add_executable(run_network_test src/test_run_network.cpp)
+target_link_libraries(run_network_test PRIVATE Catch2::Catch2WithMain)
+# Set the working directory for the test so that it can find the run_network executable
+# which is built in the same output directory (${CMAKE_CURRENT_BINARY_DIR}).
+
+enable_testing()
+add_test(NAME run_network_test
+         COMMAND run_network_test
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
