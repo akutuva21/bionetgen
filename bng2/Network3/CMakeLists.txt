@@ -67,6 +67,10 @@ link_libraries(libmathutils.a libmuparser.a libsundials_cvode.a libsundials_nvec
 add_executable(run_network ${SRC_FILES})
 
 # --- Add test target ---
+# For Catch2 v3, C++14 or higher is required. Some older Cmake versions default to older standards.
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 include(FetchContent)
 FetchContent_Declare(
   Catch2
@@ -75,8 +79,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
-add_executable(run_network_test src/test_run_network.cpp)
+add_executable(run_network_test tests/test_run_network.cpp)
 target_link_libraries(run_network_test PRIVATE Catch2::Catch2WithMain)
+
+# We define BIN_PATH as a macro containing the path. Using absolute paths correctly
 target_compile_definitions(run_network_test PRIVATE BIN_PATH="${CMAKE_CURRENT_BINARY_DIR}/run_network")
 
 enable_testing()
