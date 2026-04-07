@@ -15,7 +15,8 @@ def findBond(bondDefinitions, component):
     Returns an appropiate bond number when veryfying how 
     to molecules connect in a species
     '''
-    for idx, bond in enumerate(bondDefinitions.getchildren()):
+    children = bondDefinitions.getchildren() if hasattr(bondDefinitions, 'getchildren') else list(bondDefinitions)
+    for idx, bond in enumerate(children):
         if component in [bond.get('site1'), bond.get('site2')]: 
             return str(idx+1)
     
@@ -46,7 +47,8 @@ def createSpecies(pattern):
     species.idx = pattern.get('id')
     mol = pattern.find('.//{http://www.sbml.org/sbml/level3}ListOfMolecules')
     bonds = pattern.find('.//{http://www.sbml.org/sbml/level3}ListOfBonds')
-    for molecule in mol.getchildren():
+    children = mol.getchildren() if hasattr(mol, 'getchildren') else list(mol)
+    for molecule in children:
         molecule, nameDict = createMolecule(molecule, bonds)
         tmpDict.update(nameDict)
         species.addMolecule(molecule)
@@ -85,8 +87,8 @@ def parseRule(rule):
         tag = operation.tag
         tag = tag.replace('{http://www.sbml.org/sbml/level3}','')
         if tag in ['Add','Delete']:
-		action.setAction(tag,operation.get('id'),None)
-	elif 'Bond' in tag:
+            action.setAction(tag,operation.get('id'),None)
+        elif 'Bond' in tag:
             action.setAction(tag, operation.get('site1'), operation.get('site2'))
         else:
             action.setAction(tag, operation.get('site'), None)
@@ -106,7 +108,8 @@ def parseMolecules(molecules):
     components = \
       molecules.find('.//{http://www.sbml.org/sbml/level3}ListOfComponentTypes')
     if components != None:
-        for component in components.getchildren():
+        children = components.getchildren() if hasattr(components, 'getchildren') else list(components)
+        for component in children:
             comp = st.Component(component.get('name'),component.get('id'))
             mol.addComponent(comp)
     return mol       
