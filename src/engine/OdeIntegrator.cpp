@@ -31,6 +31,20 @@ namespace bng::engine {
 
 namespace {
 
+// Helper to check if a word appears as a standalone token in a string.
+// Word boundaries are non-alphanumeric and non-underscore characters.
+bool hasWordMatch(const std::string& text, const std::string& word) {
+    if (word.empty()) return false;
+    std::size_t pos = 0;
+    while ((pos = text.find(word, pos)) != std::string::npos) {
+        bool leftBound = (pos == 0) || !(std::isalnum(static_cast<unsigned char>(text[pos - 1])) || text[pos - 1] == '_');
+        bool rightBound = (pos + word.length() == text.length()) || !(std::isalnum(static_cast<unsigned char>(text[pos + word.length()])) || text[pos + word.length()] == '_');
+        if (leftBound && rightBound) return true;
+        pos += word.length();
+    }
+    return false;
+}
+
 // Recursive expression evaluator for rate strings.
 // Handles: numbers, parameters, +, -, *, /, (), and nested expressions.
 double evaluateRateString(const std::string& rateStr,
@@ -426,7 +440,7 @@ void OdeIntegrator::compile() {
             std::string rateLawLower = rawRateLaw;
             std::transform(rateLawLower.begin(), rateLawLower.end(), rateLawLower.begin(), ::tolower);
 
-            if (rateLawLower.find("time") != std::string::npos) {
+            if (hasWordMatch(rateLawLower, "time")) {
                 isFunctional = true;
             } else {
                 // Check for observable dependencies
@@ -447,8 +461,8 @@ void OdeIntegrator::compile() {
                     const auto& fname = func.getName();
                     std::string fnameLower = fname;
                     std::transform(fnameLower.begin(), fnameLower.end(), fnameLower.begin(), ::tolower);
-                    if (rateLawLower.find(fnameLower) != std::string::npos ||
-                        rawRL.find(fname) != std::string::npos) {
+                    if (hasWordMatch(rateLawLower, fnameLower) ||
+                        hasWordMatch(rawRL, fname)) {
                         isFunctional = true;
                         matchedFuncName = fname;
                         break;
@@ -487,7 +501,7 @@ void OdeIntegrator::compile() {
             for (const auto& func : model_.getFunctions()) {
                 std::string fnameLow = func.getName();
                 std::transform(fnameLow.begin(), fnameLow.end(), fnameLow.begin(), ::tolower);
-                if (rlLow.find(fnameLow) != std::string::npos) {
+                if (hasWordMatch(rlLow, fnameLow) || hasWordMatch(rawRL, func.getName())) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
@@ -552,7 +566,7 @@ void OdeIntegrator::compile() {
                     // name is not a built-in).
                     if (!needsRuntime && str.find('(') != std::string::npos) {
                         for (const auto& func : model_.getFunctions()) {
-                            if (str.find(func.getName()) != std::string::npos) {
+                            if (hasWordMatch(str, func.getName())) {
                                 needsRuntime = true;
                                 break;
                             }
