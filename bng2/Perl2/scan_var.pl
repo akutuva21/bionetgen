@@ -171,6 +171,12 @@ unless (@mandatory_args==5)
 my ($file, $var, $var_min, $var_max, $n_pts) = @mandatory_args;
 
 
+# Validate variable name to prevent injection into BNGL file
+if ($var =~ /[^a-zA-Z0-9_]/)
+{
+    die "Security Error: Parameter name '$var' contains invalid characters. Only alphanumeric characters and underscores are allowed.";
+}
+
 # Automatic assignment of prefix if unset
 unless ($prefix)
 {
@@ -184,6 +190,11 @@ unless ($prefix)
 # add variable name to prefix
 $prefix.="_${var}";
 
+# Validate prefix to prevent parameter injection
+if ($prefix =~ /^-/)
+{
+    die "Security Error: Prefix cannot start with a hyphen.";
+}
 
 if ($log)
 {   # convert min and max into log values
@@ -275,7 +286,7 @@ close(BNGL);
 
 # Run BioNetGen on ScanModel file
 print "Running BioNetGen on $scanmodel\n";
-my @command = ($perlbin, $bngexec, "--outdir", $prefix, $scanmodel);
+my @command = ($perlbin, $bngexec, "--outdir", $prefix, "--", $scanmodel);
 
 # open logfile
 open( my $logFH, ">", $logfile ) or die $!;
