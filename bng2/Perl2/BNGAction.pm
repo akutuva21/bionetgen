@@ -743,9 +743,9 @@ sub simulate
     }
 
     # If there are no errors or flags so far, let's load output concentrations
-    if ( !($model->RxnList) )
-    {   # TODO: what does this accomplish? --Justin
-        send_warning("Not updating species concentrations because no model has been read.");
+    if ( !($model->SpeciesList) || @{$model->SpeciesList->Array} == 0 )
+    {
+        send_warning("Not updating species concentrations because no species are defined in the model.");
     }
     elsif ( -e "$prefix.cdat" )
     {
