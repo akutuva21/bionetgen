@@ -29,6 +29,7 @@ package BNGModel;
 # pragmas
 use strict;
 use warnings;
+use Safe;
 no warnings 'redefine';
 
 # Perl Modules
@@ -1115,9 +1116,22 @@ sub readSBML
                             }
     
                             # execute action        
-                            my $command = sprintf "\$model->%s(%s);", $action, $options;
+                            my @eval_args;
+                            if (defined $options && $options !~ /^\s*$/) {
+                                my $cpt = Safe->new;
+                                $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
+                                @eval_args = $cpt->reval($options);
+                                if ($@) { $err = errgen("Error parsing $action options: $@"); goto EXIT; }
+                            }
+
                             my $t_start = cpu_time(0);
-                            $err = eval $command;
+                            $err = eval {
+                                if (@eval_args) {
+                                    $model->$action(@eval_args);
+                                } else {
+                                    $model->$action();
+                                }
+                            };
                             if ($@)   { $err = errgen($@);    goto EXIT; }
                             if ($err) { $err = errgen($err);  goto EXIT; }
                             my $t_elapsed = cpu_time($t_start);
@@ -1193,8 +1207,21 @@ sub readSBML
                     {  $err = errgen($err);  goto EXIT;  }
     
                     # call to methods associated with $model
-                    my $command = '$model->' . $action . '(' . $options . ');';
-                    $err = eval $command;
+                    my @eval_args;
+                    if (defined $options && $options !~ /^\s*$/) {
+                        my $cpt = Safe->new;
+                        $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
+                        @eval_args = $cpt->reval($options);
+                        if ($@) { $err = errgen("Error parsing $action options: $@"); goto EXIT; }
+                    }
+
+                    $err = eval {
+                        if (@eval_args) {
+                            $model->$action(@eval_args);
+                        } else {
+                            $model->$action();
+                        }
+                    };
                     if ($@)   {  $err = errgen($@);    goto EXIT;  }
                     if ($err) {  $err = errgen($err);  goto EXIT;  }
                 }
@@ -1246,10 +1273,22 @@ sub readSBML
                     }
     
                     # execute action
-                    my $command = sprintf "\$model->%s(%s);", $action, $options;
-    
-                     my $t_start = cpu_time(0);                    
-                    $err = eval $command;
+                    my @eval_args;
+                    if (defined $options && $options !~ /^\s*$/) {
+                        my $cpt = Safe->new;
+                        $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
+                        @eval_args = $cpt->reval($options);
+                        if ($@) { $err = errgen("Error parsing $action options: $@"); goto EXIT; }
+                    }
+
+                    my $t_start = cpu_time(0);
+                    $err = eval {
+                        if (@eval_args) {
+                            $model->$action(@eval_args);
+                        } else {
+                            $model->$action();
+                        }
+                    };
                     if ($@)   { $err = errgen($@);    goto EXIT; }
                     if ($err) { $err = errgen($err);  goto EXIT; }
                     my $t_elapsed = cpu_time($t_start);
