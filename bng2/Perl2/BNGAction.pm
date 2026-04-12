@@ -71,12 +71,22 @@ sub simulate_protocol
         }
         else
         {
-            $modified_options = $options;
-            my $command = sprintf "\$model->%s(%s);", $action, $modified_options;
             my $t_start = cpu_time(0);
-            $err = eval $command;
-            #if ($@)   { $err = errgen($@);    goto EXIT; }
-            #if ($err) { $err = errgen($err);  goto EXIT; }
+            if (my $method = $model->can($action)) {
+                my $cpt = Safe->new;
+                $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
+                my @args;
+                if ($options && $options !~ /^\s*$/) {
+                    my $parsed_args = $cpt->reval("[$options]");
+                    if ($@) { die "Error parsing options for $action: $@"; }
+                    @args = @$parsed_args if $parsed_args;
+                }
+
+                $err = eval { $model->$method(@args) };
+                if ($@) { $err = $@; }
+            } else {
+                $err = "Method $action does not exist on model.";
+            }
             my $t_elapsed = cpu_time($t_start);
             printf "CPU TIME: %s %.2f s.\n", $action, $t_elapsed;
         }
