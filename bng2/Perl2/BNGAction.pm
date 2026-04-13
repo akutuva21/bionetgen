@@ -57,11 +57,11 @@ sub simulate_protocol
 
         if(index($action,"simulate") != -1)
         {
-            # SECURITY: Use Safe->reval instead of eval to prevent arbitrary code execution
-            my $cpt = Safe->new;
-            $cpt->permit(qw(:base_core :base_math :base_mem entereval));
-            my $hash_opts_ref = $cpt->reval($options);
-            if ($@) { die "Error parsing simulate options: $@"; }
+            my ($args_ref, $parse_err) = _parse_action_args($options);
+            if ($parse_err) { die "Error parsing simulate options: $parse_err"; }
+            my $hash_opts_ref = @$args_ref ? $args_ref->[0] : {};
+            die "Error parsing simulate options: expected a hash reference."
+                unless ref($hash_opts_ref) eq 'HASH';
             #modifying hash with local prefix
             $hash_opts_ref->{prefix} = $params->{prefix};
             #deleting suffix
@@ -72,18 +72,10 @@ sub simulate_protocol
         else
         {
             my $t_start = cpu_time(0);
-            if (my $method = $model->can($action)) {
-                my $cpt = Safe->new;
-                $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
-                my @args;
-                if ($options && $options !~ /^\s*$/) {
-                    my $parsed_args = $cpt->reval("[$options]");
-                    if ($@) { die "Error parsing options for $action: $@"; }
-                    @args = @$parsed_args if $parsed_args;
-                }
-
-                $err = eval { $model->$method(@args) };
-                if ($@) { $err = $@; }
+            if ($model->can($action)) {
+                my $eval_err;
+                ($err, $eval_err) = _invoke_model_action($model, $action, $options);
+                die $eval_err if $eval_err;
             } else {
                 $err = "Method $action does not exist on model.";
             }
@@ -210,12 +202,8 @@ sub simulate
                 else
                 {   # Special handling for sample_times array
                     print "$args[0] => $args[1]\n";
-                    # evaluate sample_times string to get array ref (hopefully)
-                    # SECURITY: Use Safe->reval instead of eval to prevent arbitrary code execution
-                    my $cpt = Safe->new;
-                    $cpt->permit(qw(:base_core :base_math :base_mem entereval));
-                    my $sample_times = $cpt->reval($args[1]);
-                    if ($@)
+                    my ($sample_times, $eval_err) = _safe_reval_literal($args[1]);
+                    if ($eval_err or ref($sample_times) ne 'ARRAY')
                     {    return "Problem parsing 'sample_times': Sample times must be comma-separated (no spaces) ints or floats "
                              . "(exponential format ok) enclosed in square brackets, e.g., [5e-1,1,5.0,1E1].";
                     }
