@@ -296,6 +296,7 @@ class allMaps:
 		self.t = tr_map
 		self.tp = trpair_map
 		self.names = names
+		self.irr_ids = set(names.irr.values())
 		
 	def getFlow(self, type_vector, idx_list):
 		if type_vector == ['p','t']:
@@ -312,7 +313,7 @@ class allMaps:
 			list4 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_delcontext for p_id2 in idx_list if p_id1==p_id2])
 			return unq(combineLists([list1,list2,list3,list4]))
 		elif type_vector == ['p','irr']:
-			return [ x for x in self.getFlow(['p','t'],idx_list) if x in set(self.names.irr.values()) ]
+			return [x for x in self.getFlow(['p','t'],idx_list) if x in self.irr_ids]
 		
 		elif type_vector == ['t','p']:
 			# get transformations that contain the pattern as product or syncontext
@@ -362,7 +363,7 @@ class allMaps:
 			list3 = unq([t_id for t_id,p_id1 in self.t.t2p_syndelcontext for p_id2 in idx_list if p_id1==p_id2])
 			return unq(combineLists([list1,list2,list3]))
 		if type_vector == ['p','irr']:
-			return [x for x in self.getFlux(['p','t'],idx_list) if x in set(self.names.irr.values())]
+			return [x for x in self.getFlux(['p','t'],idx_list) if x in self.irr_ids]
 			
 	def getAll(self,type_vector,idx_list):
 		if type_vector == ['tp','p']:
@@ -589,7 +590,8 @@ def getLevels(start,end,names,all_maps):
 		max_p_levels = None
 		min_p_levels = None
 
-	for tp in [x for x in set(names.tp.values()) if x not in tp_levels]:
+	remaining_tp = [x for x in names.tp.values() if x not in tp_levels]
+	for tp in remaining_tp:
 		possiblelevels = [p_levels[y] for x,y in maps if x==tp and y in p_levels]
 		if len(possiblelevels)>0:
 			possiblelevels_set = set(possiblelevels)
@@ -601,7 +603,8 @@ def getLevels(start,end,names,all_maps):
 				tp_levels[tp] = min(possiblelevels)
 	irr_levels = dict()
 	maps2 = all_maps.t.t2p_reactant+all_maps.t.t2p_product+all_maps.t.t2p_syndelcontext
-	for irr in [x for x in set(names.irr.values()) if x not in irr_levels]:
+	remaining_irr = [x for x in names.irr.values() if x not in irr_levels]
+	for irr in remaining_irr:
 		possiblelevels = [p_levels[y] for x,y in maps2 if x==irr and y in p_levels]
 		if len(possiblelevels)>0:
 			possiblelevels_set = set(possiblelevels)
@@ -615,12 +618,14 @@ def getLevels(start,end,names,all_maps):
 
 	# Second round of assigning levels to patterns
 	maps = all_maps.tp.tp2p_forwardreactant+all_maps.tp.tp2p_delcontext + all_maps.tp.tp2p_forwardcontext + all_maps.tp.tp2p_reversecontext
-	for p in [x for x in set(names.p.values()) if x not in p_levels]:
+	remaining_p = [x for x in names.p.values() if x not in p_levels]
+	for p in remaining_p:
 		possiblelevels = [tp_levels[x] for x,y in maps if y==p and x in tp_levels]
 		if len(possiblelevels) > 0:
 			p_levels[p] = min(possiblelevels)
 	maps2 = all_maps.t.t2p_reactant+all_maps.t.t2p_product+all_maps.t.t2p_syndelcontext + all_maps.t.t2p_context
-	for p in [x for x in set(names.p.values()) if x not in p_levels]:
+	remaining_p = [x for x in names.p.values() if x not in p_levels]
+	for p in remaining_p:
 		possiblelevels = [irr_levels[x] for x,y in maps2 if y==p and x in irr_levels]
 		if len(possiblelevels) > 0:
 			p_levels[p] = min(possiblelevels)

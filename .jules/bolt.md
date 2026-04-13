@@ -1,3 +1,0 @@
-## 2025-02-12 - Python `.keys()` and `.values()` Membership Check Degradation
-**Learning:** Legacy Python 2 dictionary `.keys()` and `.values()` membership checks (`x in dict.keys()`, `x in dict.values()`) create an explicit list in Python 2 and a dict view in Python 3. This changes O(1) hash map lookups into O(N) linear scans. When repeated inside list comprehensions over multiple layers of loops (e.g., in `parsers/BipartiteGraph/`), this causes severe performance degradation.
-**Action:** Always replace `x in dict.keys()` with `x in dict` to restore O(1) performance and avoid unnecessary object allocations. For `.values()`, wrap it in a set like `set(dict.values())` outside the loop, or at least inline for small dicts if outside is impossible, to ensure fast lookups.
