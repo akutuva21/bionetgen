@@ -305,6 +305,51 @@ sub _validate_action_options_syntax
 }
 
 
+sub _safe_reval_literal
+{
+    my ($expr) = @_;
+
+    my $cpt = Safe->new;
+    $cpt->permit(qw(:base_core :base_math :base_mem));
+
+    local $@;
+    my $value = $cpt->reval($expr);
+    my $eval_err = $@;
+
+    return ($value, $eval_err);
+}
+
+
+sub _parse_action_args
+{
+    my ($options) = @_;
+
+    return ([], '') unless defined $options and $options =~ /\S/;
+
+    my ($args_ref, $eval_err) = _safe_reval_literal("[$options]");
+    return (undef, $eval_err) if $eval_err;
+    return (undef, "Action options did not parse to an argument list.")
+        unless ref($args_ref) eq 'ARRAY';
+
+    return ($args_ref, '');
+}
+
+
+sub _invoke_model_action
+{
+    my ($model, $action, $options) = @_;
+
+    my ($args_ref, $parse_err) = _parse_action_args($options);
+    return ('', $parse_err) if $parse_err;
+
+    local $@;
+    my $result = eval { $model->$action(@$args_ref) };
+    my $eval_err = $@;
+
+    return ($result, $eval_err);
+}
+
+
 # read Network from file
 # $err = $model->readModel({file=>FILENAME}) 
 sub readNetwork
@@ -1115,24 +1160,11 @@ sub readSBML
                                 goto EXIT;
                             }
     
-                            # execute action        
-                            my @eval_args;
-                            if (defined $options && $options !~ /^\s*$/) {
-                                my $cpt = Safe->new;
-                                $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
-                                @eval_args = $cpt->reval($options);
-                                if ($@) { $err = errgen("Error parsing $action options: $@"); goto EXIT; }
-                            }
-
+                            # Execute the action without string eval after validating the option syntax.
                             my $t_start = cpu_time(0);
-                            $err = eval {
-                                if (@eval_args) {
-                                    $model->$action(@eval_args);
-                                } else {
-                                    $model->$action();
-                                }
-                            };
-                            if ($@)   { $err = errgen($@);    goto EXIT; }
+                            my $eval_err;
+                            ($err, $eval_err) = _invoke_model_action($model, $action, $options);
+                            if ($eval_err) { $err = errgen($eval_err); goto EXIT; }
                             if ($err) { $err = errgen($err);  goto EXIT; }
                             my $t_elapsed = cpu_time($t_start);
                             printf "CPU TIME: %s %.2f s.\n", $action, $t_elapsed;
@@ -1207,22 +1239,12 @@ sub readSBML
                     {  $err = errgen($err);  goto EXIT;  }
     
                     # call to methods associated with $model
-                    my @eval_args;
-                    if (defined $options && $options !~ /^\s*$/) {
-                        my $cpt = Safe->new;
-                        $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
-                        @eval_args = $cpt->reval($options);
-                        if ($@) { $err = errgen("Error parsing $action options: $@"); goto EXIT; }
-                    }
+                    if (my $syntax_err = _validate_action_options_syntax($options))
+                    {  $err = errgen( "Invalid option syntax: $syntax_err" );  goto EXIT;  }
 
-                    $err = eval {
-                        if (@eval_args) {
-                            $model->$action(@eval_args);
-                        } else {
-                            $model->$action();
-                        }
-                    };
-                    if ($@)   {  $err = errgen($@);    goto EXIT;  }
+                    my $eval_err;
+                    ($err, $eval_err) = _invoke_model_action($model, $action, $options);
+                    if ($eval_err)   {  $err = errgen($eval_err);    goto EXIT;  }
                     if ($err) {  $err = errgen($err);  goto EXIT;  }
                 }
     
@@ -1272,24 +1294,11 @@ sub readSBML
                         goto EXIT;
                     }
     
-                    # execute action
-                    my @eval_args;
-                    if (defined $options && $options !~ /^\s*$/) {
-                        my $cpt = Safe->new;
-                        $cpt->permit(qw(:base_core :base_math :base_mem entereval method));
-                        @eval_args = $cpt->reval($options);
-                        if ($@) { $err = errgen("Error parsing $action options: $@"); goto EXIT; }
-                    }
-
+                    # Execute the action without string eval after validating the option syntax.
                     my $t_start = cpu_time(0);
-                    $err = eval {
-                        if (@eval_args) {
-                            $model->$action(@eval_args);
-                        } else {
-                            $model->$action();
-                        }
-                    };
-                    if ($@)   { $err = errgen($@);    goto EXIT; }
+                    my $eval_err;
+                    ($err, $eval_err) = _invoke_model_action($model, $action, $options);
+                    if ($eval_err) { $err = errgen($eval_err); goto EXIT; }
                     if ($err) { $err = errgen($err);  goto EXIT; }
                     my $t_elapsed = cpu_time($t_start);
                     printf "CPU TIME: %s %.2f s.\n", $action, $t_elapsed;

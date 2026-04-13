@@ -40,6 +40,8 @@ comparison_results
 
 .claude
 artifacts/
+__pycache__/
+*.pyc
 
 # temporary
 testing

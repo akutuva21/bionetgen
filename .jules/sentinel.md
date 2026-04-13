@@ -1,4 +1,0 @@
-## 2025-02-14 - Arbitrary Code Execution via String `eval` in Dynamic Method Invocations
-**Vulnerability:** The code parsed a user-controlled string (action commands like `simulate({method=>"ode"})`) by formatting it into a Perl method call string (`sprintf "\$model->%s(%s);", $action, $options;`) and executing it with `eval $command;`. This permitted arbitrary Perl code execution.
-**Learning:** In Perl, concatenating user-provided variables into strings passed to `eval` is extremely dangerous and easily bypasses intent, as options or actions could contain `eval`-able perl code or OS commands.
-**Prevention:** Avoid string `eval` for dynamic method calls. Use `Safe->new->reval` to securely parse input strings into Perl data structures (like lists or hash references), explicitly verify method names using `can`, and invoke methods natively wrapped in an `eval { ... }` block to catch runtime exceptions.
