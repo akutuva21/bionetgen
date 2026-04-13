@@ -41,6 +41,7 @@ use File::Spec::Win32;
 use POSIX ("floor", "ceil");
 use Scalar::Util ("looks_like_number");
 use Config;
+use Safe;
 
 use Cwd;
 
