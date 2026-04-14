@@ -345,7 +345,8 @@ class Molecule:
         if not overlap:
             self.components.append(component)
         else:
-            if not component.name in [x.name for x in self.components]:
+            # ⚡ Bolt: avoid creating an O(N) list for membership checking
+            if not any(component.name == x.name for x in self.components):
                 self.components.append(component)
             else:
                 compo = self.getComponent(component.name)
@@ -369,9 +370,9 @@ class Molecule:
                 return component
                 
     def removeComponent(self,componentName):
-        x = [x for x in self.components if x.name == componentName]
-        if x != []:
-            self.components.remove(x[0])
+        x = next((x for x in self.components if x.name == componentName), None)
+        if x is not None:
+            self.components.remove(x)
             
     def removeComponents(self,components):
         for element in components:
@@ -403,14 +404,15 @@ class Molecule:
         
     def extend(self,molecule):
         for element in molecule.components:
-            comp = [x for x in self.components if x.name == element.name]
-            if len(comp) == 0:
+            # ⚡ Bolt: avoid O(N) list creation for a single component matching by using a generator
+            comp = next((x for x in self.components if x.name == element.name), None)
+            if comp is None:
                 self.components.append(deepcopy(element))
             else:
                 for bond in element.bonds:
-                    comp[0].addBond(bond)
+                    comp.addBond(bond)
                 for state in element.states:
-                    comp[0].addState(state)
+                    comp.addState(state)
                     
     def reset(self):
         for element in self.components:
