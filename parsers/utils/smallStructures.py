@@ -490,15 +490,26 @@ class Molecule:
         return self.name + '(' + self.components[0].name + ')'
 
     def extend(self,molecule):
+        # ⚡ Bolt: Replaced O(N^2) inner list comprehension lookup with O(N) dict hash map
+        # to optimize component merging.
+        # Preserve original behavior: only map the *first* component encountered with a given name
+        # to handle edge cases with identical duplicate components appropriately.
+        comp_map = {}
+        for x in self.components:
+            if x.name not in comp_map:
+                comp_map[x.name] = x
+
         for element in molecule.components:
-            comp = [x for x in self.components if x.name == element.name]
-            if len(comp) == 0:
-                self.components.append(deepcopy(element))
+            comp = comp_map.get(element.name)
+            if comp is None:
+                new_comp = deepcopy(element)
+                self.components.append(new_comp)
+                comp_map[element.name] = new_comp
             else:
                 for bond in element.bonds:
-                    comp[0].addBond(bond)
+                    comp.addBond(bond)
                 for state in element.states:
-                    comp[0].addState(state)
+                    comp.addState(state)
                     
     def reset(self):
         for element in self.components:
@@ -595,9 +606,16 @@ class Component:
             self.setActiveState(state)
         #print 'LALALA',state
     def addStates(self,states,update=True):
+        # ⚡ Bolt: Replaced O(N^2) list membership checks with O(N) set lookup.
+        # Track seen states dynamically to prevent duplicates from within the input list.
+        current_states_set = set(self.states)
         for state in states:
-            if state not in self.states:
-                self.addState(state,update)
+            if state not in current_states_set:
+                self.states.append(state)
+                current_states_set.add(state)
+                # Preserve the exact behavior of sequentially updating activeState
+                if update:
+                    self.setActiveState(state)
         
     def addBond(self,bondName):
         if not bondName in self.bonds:
