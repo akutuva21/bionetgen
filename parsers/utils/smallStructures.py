@@ -448,9 +448,10 @@ class Molecule:
                 return component
                 
     def removeComponent(self,componentName):
-        x = [x for x in self.components if x.name == componentName]
-        if x != []:
-            self.components.remove(x[0])
+        for i, x in enumerate(self.components):
+            if x.name == componentName:
+                del self.components[i]
+                break
             
     def removeComponents(self,components):
         for element in components:
@@ -490,15 +491,22 @@ class Molecule:
         return self.name + '(' + self.components[0].name + ')'
 
     def extend(self,molecule):
+        comp_dict = {}
+        for c in self.components:
+            if c.name not in comp_dict:
+                comp_dict[c.name] = c
+
         for element in molecule.components:
-            comp = [x for x in self.components if x.name == element.name]
-            if len(comp) == 0:
-                self.components.append(deepcopy(element))
+            comp = comp_dict.get(element.name)
+            if comp is None:
+                new_comp = deepcopy(element)
+                self.components.append(new_comp)
+                comp_dict[element.name] = new_comp
             else:
                 for bond in element.bonds:
-                    comp[0].addBond(bond)
+                    comp.addBond(bond)
                 for state in element.states:
-                    comp[0].addState(state)
+                    comp.addState(state)
                     
     def reset(self):
         for element in self.components:
@@ -595,9 +603,11 @@ class Component:
             self.setActiveState(state)
         #print 'LALALA',state
     def addStates(self,states,update=True):
+        existing_states = set(self.states)
         for state in states:
-            if state not in self.states:
+            if state not in existing_states:
                 self.addState(state,update)
+                existing_states.add(state)
         
     def addBond(self,bondName):
         if not bondName in self.bonds:
