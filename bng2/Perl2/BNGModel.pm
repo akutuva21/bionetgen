@@ -1905,7 +1905,7 @@ sub setOption
         unless (@_) { return "No value specified for option $arg"; }
         my $val = shift @_;
         
-        # TODO: print arg and val to user?
+        printf "Setting option %s => %s\n", $arg, $val;
 
         if ( $arg eq "SpeciesLabel" )
         {
