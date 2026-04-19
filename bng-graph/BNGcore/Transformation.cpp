@@ -690,8 +690,34 @@ DeleteConnected::print ( )
 void
 DeleteConnected::get_center ( node_container_t & center_nodes )
 {
-    // TODO: hmm...
-    center_nodes.push_back( node );
+    if (!node) return;
+
+    std::vector<Node*> queue;
+    queue.push_back(node);
+
+    std::set<Node*> visited;
+    std::set<Node*> existing_centers(center_nodes.begin(), center_nodes.end());
+
+    size_t head = 0;
+    while (head < queue.size()) {
+        Node * curr = queue[head++];
+
+        if (visited.find(curr) == visited.end()) {
+            visited.insert(curr);
+
+            if (existing_centers.find(curr) == existing_centers.end()) {
+                center_nodes.push_back(curr);
+                existing_centers.insert(curr);
+            }
+
+            for (node_const_iter_t iter = curr->edges_in_begin(); iter != curr->edges_in_end(); ++iter) {
+                queue.push_back(*iter);
+            }
+            for (node_const_iter_t iter = curr->edges_out_begin(); iter != curr->edges_out_end(); ++iter) {
+                queue.push_back(*iter);
+            }
+        }
+    }
 }
 
 
