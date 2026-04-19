@@ -21,3 +21,7 @@ target_compile_definitions(test_run_network PRIVATE
 
 include(Catch)
 catch_discover_tests(test_run_network)
+
+add_executable(test_hybrid_model_generator test_hybrid_model_generator.cpp)
+target_link_libraries(test_hybrid_model_generator PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine)
+catch_discover_tests(test_hybrid_model_generator)
