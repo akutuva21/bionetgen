@@ -21,3 +21,7 @@ target_compile_definitions(test_run_network PRIVATE
 
 include(Catch)
 catch_discover_tests(test_run_network)
+
+add_executable(test_pla_simulator test_pla_simulator.cpp)
+target_link_libraries(test_pla_simulator PRIVATE bng_engine Catch2::Catch2WithMain Catch2::Catch2)
+catch_discover_tests(test_pla_simulator)
