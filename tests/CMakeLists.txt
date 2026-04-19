@@ -40,3 +40,8 @@ target_link_libraries(test_pla_simulator PRIVATE
     antlr4_static
 )
 catch_discover_tests(test_pla_simulator)
+
+add_executable(test_HybridModelGenerator test_HybridModelGenerator.cpp)
+target_link_libraries(test_HybridModelGenerator PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast)
+add_test(NAME test_HybridModelGenerator COMMAND test_HybridModelGenerator)
+catch_discover_tests(test_HybridModelGenerator)
