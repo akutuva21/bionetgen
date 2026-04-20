@@ -153,8 +153,7 @@ sub BNGconsole
                     last PROCESS_INPUT;
                 }
 		    	
-                # define action
-                my $command = '$model->' . $action . '(' . $options . ');';
+                # check if action is valid
                 if (!$model->can($action))
                 {
                     send_warning( "Problem executing action: Invalid action: $action." );
@@ -175,10 +174,10 @@ sub BNGconsole
                 # execute action
                 my $t_start = cpu_time(0);
                 {
-		    	    my $err = eval $command;
-                    if ($@)
+                    my ($err, $eval_err) = BNGModel::_invoke_model_action($model, $action, $options);
+                    if ($eval_err)
                     {
-                        send_warning("Problem executing action: $@.");
+                        send_warning("Problem executing action: $eval_err.");
                         last PROCESS_INPUT;
                     }
                     if ($err)
