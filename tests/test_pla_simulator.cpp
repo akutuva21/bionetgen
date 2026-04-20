@@ -3,6 +3,8 @@
 #include "../src/engine/PlaSimulator.hpp"
 #include "../src/ast/Model.hpp"
 #include "../src/engine/NetworkGenerator.hpp"
+// Include implementation to exercise evaluateRateString in anonymous namespace.
+#include "../src/engine/PlaSimulator.cpp"
 
 using namespace bng::engine;
 using namespace bng::ast;
@@ -83,4 +85,16 @@ TEST_CASE("PlaSimulator initialization and simulation", "[PlaSimulator]") {
     REQUIRE_THAT(result.timePoints.back(), Catch::Matchers::WithinAbs(1.0, 1e-6));
     REQUIRE(result.concentrations.size() == result.timePoints.size());
     REQUIRE(result.observables.size() == result.timePoints.size());
+}
+
+TEST_CASE("evaluateRateString error path", "[PlaSimulator]") {
+    auto resolve = [](const std::string& s) {
+        if (s == "valid_var") return 42.0;
+        return 0.0;
+    };
+
+    REQUIRE_THAT(evaluateRateString("1.23", resolve), Catch::Matchers::WithinRel(1.23));
+    REQUIRE_THAT(evaluateRateString("invalid_float", resolve), Catch::Matchers::WithinRel(0.0));
+    REQUIRE_THAT(evaluateRateString("valid_var", resolve), Catch::Matchers::WithinRel(42.0));
+    REQUIRE_THAT(evaluateRateString("1.23abc", resolve), Catch::Matchers::WithinRel(0.0));
 }
