@@ -1244,10 +1244,12 @@ std::vector<ReactionRule::EmbeddingResult> ReactionRule::findEmbeddingsForSpecie
         }
     }
 
-    for (std::size_t speciesIndex = 0; speciesIndex < speciesList.size(); ++speciesIndex) {
-        if (candidateSpecies.find(speciesIndex) == candidateSpecies.end()) {
-            continue;
-        }
+    std::vector<std::size_t> sortedCandidates(candidateSpecies.begin(), candidateSpecies.end());
+    std::sort(sortedCandidates.begin(), sortedCandidates.end());
+
+    for (std::size_t speciesIndex : sortedCandidates) {
+        if (speciesIndex >= speciesList.size()) continue;
+
         // Skip species that have already been searched in previous iterations
         if (alreadySearchedSpecies.count(speciesIndex) > 0) {
             continue;
