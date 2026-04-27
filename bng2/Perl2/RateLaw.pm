@@ -758,29 +758,8 @@ sub toCVodeString
         
         my $fcn = $fcn_param->Ref;
 
-        # get CVodeRefs for tagged reactants
-        # TODO: this may be obsolete due to local fnc evaluation
-        my @fcn_args = ();
-        if ( @{$fcn->Args} )
-        {
-            if ( ref $rrefs eq 'HASH' )
-            {
-                foreach my $tag (  @{$fcn->Args} )
-                {
-                    unless ( (exists $rrefs->{$tag}) and (exists $reactants->[$rrefs->{$tag}]) )
-                    {   return "could not find reactant or tag corresponding to ratelaw argument!";   }
-                    
-                    push @fcn_args, ($reactants->[$rrefs->{$tag}])->getCVodeName;
-                }
-            }
-            else
-            {   return "ratelaw depends on tagged reactants and RRefs hash is missing!";   }
-        }
-
         # add references to the expressions and observables arrays
-        #push @rl_terms, $fcn->toCVodeString( $plist, {'fcn_mode' => 'call'});
-        push @fcn_args, 'expressions', 'observables';
-        push @rl_terms, $fcn->Name . '(' . join( ',', @fcn_args ) . ')';
+        push @rl_terms, $fcn->toCVodeString( $plist, {'fcn_mode' => 'call'} );
 
         # get reactant species  
         foreach my $reactant ( @$reactants )
@@ -862,28 +841,8 @@ sub toMatlabString
         
         my $fcn = $fcn_param->Ref;
 
-        # get MatlabRefs for tagged reactants
-        # TODO: this may be obsolete due to local fnc evaluation
-        my @fcn_args = ();
-        if ( @{$fcn->Args} )
-        {
-            if ( ref $rrefs eq 'HASH' )
-            {
-                foreach my $tag (  @{$fcn->Args} )
-                {
-                    unless ( (exists $rrefs->{$tag}) and (exists $reactants->[$rrefs->{$tag}]) )
-                    {   return "could not find reactant or tag corresponding to ratelaw argument!";   }
-                    
-                    push @fcn_args, ($reactants->[$rrefs->{$tag}])->getMatlabName();
-                }
-            }
-            else
-            {   return "ratelaw depends on tagged reactants and RRefs hash is missing!";   }
-        }
-
-        # TODO: move this functionality to Function class.        
-        push @fcn_args, 'expressions', 'observables';
-        push @rl_terms, $fcn->Name . '(' . join( ',', @fcn_args ) . ')';
+        # add references to the expressions and observables arrays
+        push @rl_terms, $fcn->toMatlabString( $plist, {'fcn_mode' => 'call'} );
 
         # get reactant species  
         foreach my $reactant ( @$reactants )
