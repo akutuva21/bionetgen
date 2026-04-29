@@ -276,15 +276,56 @@ class TransformationPairMap:
 		self.tp2t_forward = dict([ [dictTransformationPairs[tp], dictTransformations[tp.forward]] for tp in dictTransformationPairs ] )
 		self.tp2t_reverse = dict([ [dictTransformationPairs[tp], dictTransformations[tp.reverse]] for tp in dictTransformationPairs ] )
 
-		self.tp2p_forwardreactant = list(set( [ (tp_id,p_id) for tp_id in dictTransformationPairs.values() for t_id,p_id in tr_map.t2p_reactant if t_id==self.tp2t_forward[tp_id] ] ))
-		self.tp2p_reversereactant = list(set( [ (tp_id,p_id) for tp_id in dictTransformationPairs.values() for t_id,p_id in tr_map.t2p_reactant if t_id==self.tp2t_reverse[tp_id] ] ))
+		t2p_reactant_dict = {}
+		for t_id, p_id in tr_map.t2p_reactant:
+			t2p_reactant_dict.setdefault(t_id, set()).add(p_id)
 
-		self.tp2p_forwardcontext = list(set( [ (tp_id,p_id) for tp_id in dictTransformationPairs.values() for t_id,p_id in tr_map.t2p_context if t_id==self.tp2t_forward[tp_id] ] ))
-		self.tp2p_reversecontext = list(set( [ (tp_id,p_id) for tp_id in dictTransformationPairs.values() for t_id,p_id in tr_map.t2p_context if t_id==self.tp2t_reverse[tp_id] ] ))
+		self.tp2p_forwardreactant = []
+		self.tp2p_reversereactant = []
+		for tp_id in dictTransformationPairs.values():
+			t_id_f = self.tp2t_forward.get(tp_id)
+			if t_id_f in t2p_reactant_dict:
+				for p_id in t2p_reactant_dict[t_id_f]:
+					self.tp2p_forwardreactant.append((tp_id, p_id))
+			t_id_r = self.tp2t_reverse.get(tp_id)
+			if t_id_r in t2p_reactant_dict:
+				for p_id in t2p_reactant_dict[t_id_r]:
+					self.tp2p_reversereactant.append((tp_id, p_id))
+		self.tp2p_forwardreactant = list(set(self.tp2p_forwardreactant))
+		self.tp2p_reversereactant = list(set(self.tp2p_reversereactant))
+
+		t2p_context_dict = {}
+		for t_id, p_id in tr_map.t2p_context:
+			t2p_context_dict.setdefault(t_id, set()).add(p_id)
+
+		self.tp2p_forwardcontext = []
+		self.tp2p_reversecontext = []
+		for tp_id in dictTransformationPairs.values():
+			t_id_f = self.tp2t_forward.get(tp_id)
+			if t_id_f in t2p_context_dict:
+				for p_id in t2p_context_dict[t_id_f]:
+					self.tp2p_forwardcontext.append((tp_id, p_id))
+			t_id_r = self.tp2t_reverse.get(tp_id)
+			if t_id_r in t2p_context_dict:
+				for p_id in t2p_context_dict[t_id_r]:
+					self.tp2p_reversecontext.append((tp_id, p_id))
+		self.tp2p_forwardcontext = list(set(self.tp2p_forwardcontext))
+		self.tp2p_reversecontext = list(set(self.tp2p_reversecontext))
 		
 		syndel_list = [(tp_id,t_id,dictNames.getElement('t',t_id).action) for tp_id,t_id in list(self.tp2t_forward.items())+list(self.tp2t_reverse.items()) ]
-		self.tp2p_syncontext = [ (tp_id,p_id) for tp_id,t_id,action in syndel_list for (t_id2,p_id) in tr_map.t2p_syndelcontext if t_id==t_id2 and action=='Add']
-		self.tp2p_delcontext = [ (tp_id,p_id) for tp_id,t_id,action in syndel_list for (t_id2,p_id) in tr_map.t2p_syndelcontext if t_id==t_id2 and action=='Delete']
+		t2p_syndelcontext_dict = {}
+		for t_id, p_id in tr_map.t2p_syndelcontext:
+			t2p_syndelcontext_dict.setdefault(t_id, set()).add(p_id)
+
+		self.tp2p_syncontext = []
+		self.tp2p_delcontext = []
+		for tp_id, t_id, action in syndel_list:
+			if t_id in t2p_syndelcontext_dict:
+				for p_id in t2p_syndelcontext_dict[t_id]:
+					if action == 'Add':
+						self.tp2p_syncontext.append((tp_id, p_id))
+					elif action == 'Delete':
+						self.tp2p_delcontext.append((tp_id, p_id))
 					
 
 	
