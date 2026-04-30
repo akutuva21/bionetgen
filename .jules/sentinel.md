@@ -1,4 +1,0 @@
-## 2024-05-31 - [Remote Code Execution in Console.pm]
-**Vulnerability:** Arbitrary code execution via `eval $command;` in `bng2/Perl2/Console.pm`. When parsing interactive action inputs, user input was directly concatenated into a string like `'$model->' . $action . '(' . $options . ');';` and executed using Perl's `eval`.
-**Learning:** Legacy debug consoles or interactive prompts often take shortcuts for executing methods, relying on dynamic string evaluation. This violates basic input validation and RCE prevention principles. Always use safe execution methods like `BNGModel::_invoke_model_action` instead of string `eval`.
-**Prevention:** Avoid string `eval` for command execution. Use explicit method lookups (`$model->can($action)`) followed by safe invocation with array arguments instead of dynamically constructing Perl source code from user input.
