@@ -142,10 +142,10 @@ sub BNGconsole
                 }
                    
                 my ($action, $options); 
-			    if ( $linein =~ /^\s*(\w+)\s*\((.*)\);?\s*$/ )
-			    {   # syntax:  "action(options)"
+			    if ( $linein =~ /^\s*([A-Za-z_]\w*)\s*(?:\(\s*(.*)\s*\))?\s*;?\s*$/ )
+			    {   # syntax:  "action(options)" or "action"
                     $action = $1;
-                    $options = $2;
+                    $options = defined $2 ? $2 : "";
                 }
                 else
                 {

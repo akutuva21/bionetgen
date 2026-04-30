@@ -140,28 +140,30 @@ class NameDictionary:
 
 	
 	def getIdx(self,elemtype,string):
+		# ⚡ Bolt: Use next() with generator instead of list comprehension + [0] for O(1) early exit
 		if elemtype == 'p':
-			return [idx for x,idx in self.p.items() if str(x)==string][0]
+			return next((idx for x,idx in self.p.items() if str(x)==string), None)
 		if elemtype == 't':
-			return [idx for x,idx in self.t.items() if str(x)==string][0]
+			return next((idx for x,idx in self.t.items() if str(x)==string), None)
 		if elemtype == 'tp':
-			return [idx for x,idx in self.tp.items() if str(x)==string][0]
+			return next((idx for x,idx in self.tp.items() if str(x)==string), None)
 		if elemtype == 'r':
-			return [idx for x,idx in self.r.items() if str(x)==string][0]
+			return next((idx for x,idx in self.r.items() if str(x)==string), None)
 		if elemtype == 'irr':
-			return [idx for x,idx in self.irr.items() if str(x)==string][0]
+			return next((idx for x,idx in self.irr.items() if str(x)==string), None)
 			
 	def getElement(self,elemtype,idx1):
+		# ⚡ Bolt: Use next() with generator instead of list comprehension + [0] for O(1) early exit
 		if elemtype == 'p':
-			return [x for x,idx in self.p.items() if idx==idx1][0]
+			return next((x for x,idx in self.p.items() if idx==idx1), None)
 		if elemtype == 't':
-			return [x for x,idx in self.t.items() if idx==idx1][0]
+			return next((x for x,idx in self.t.items() if idx==idx1), None)
 		if elemtype == 'tp':
-			return [x for x,idx in self.tp.items() if idx==idx1][0]
+			return next((x for x,idx in self.tp.items() if idx==idx1), None)
 		if elemtype == 'r':
-			return [x for x,idx in self.r.items() if idx==idx1][0]
+			return next((x for x,idx in self.r.items() if idx==idx1), None)
 		if elemtype == 'irr':
-			return [x for x,idx in self.irr.items() if idx==idx1][0]
+			return next((x for x,idx in self.irr.items() if idx==idx1), None)
 			
 	def getString(self,elemtype,idx1):
 		return str(self.getElement(elemtype,idx1))
@@ -253,10 +255,27 @@ class TransformationMap:
 
 		self.t2p_context = list(self.t2p_context)
 		
-		self.t2p_syndelcontext = list(set( [ (dictTransformations[t],dictPatterns[p]) for r in dictRules for idx,t in enumerate(r.transformations) for p in r.syndel_context[idx] if t.isSynDel() ] ))
+		# ⚡ Bolt: Use a set and construct the mapping iteratively to avoid O(N*M) list comprehensions
+		t2p_syndelcontext_set = set()
+		t2p_syncontext_set = set()
+		t2p_delcontext_set = set()
 		
-		self.t2p_syncontext = list(set( [ (dictTransformations[t],dictPatterns[p]) for r in dictRules for idx,t in enumerate(r.transformations) for p in r.syncontext[idx] if t.action=='Add' ] ))
-		self.t2p_delcontext = list(set( [ (dictTransformations[t],dictPatterns[p]) for r in dictRules for idx,t in enumerate(r.transformations) for p in r.delcontext[idx] if t.action=='Delete' ] ))
+		for r in dictRules:
+			for idx,t in enumerate(r.transformations):
+				dt = dictTransformations[t]
+				if t.isSynDel():
+					for p in r.syndel_context[idx]:
+						t2p_syndelcontext_set.add((dt, dictPatterns[p]))
+				if t.action == 'Add':
+					for p in r.syncontext[idx]:
+						t2p_syncontext_set.add((dt, dictPatterns[p]))
+				elif t.action == 'Delete':
+					for p in r.delcontext[idx]:
+						t2p_delcontext_set.add((dt, dictPatterns[p]))
+
+		self.t2p_syndelcontext = list(t2p_syndelcontext_set)
+		self.t2p_syncontext = list(t2p_syncontext_set)
+		self.t2p_delcontext = list(t2p_delcontext_set)
 		
 class TransformationPairMap:
 	'''
@@ -274,15 +293,60 @@ class TransformationPairMap:
 		self.tp2t_forward = dict([ [dictTransformationPairs[tp], dictTransformations[tp.forward]] for tp in dictTransformationPairs ] )
 		self.tp2t_reverse = dict([ [dictTransformationPairs[tp], dictTransformations[tp.reverse]] for tp in dictTransformationPairs ] )
 
-		self.tp2p_forwardreactant = list(set( [ (tp_id,p_id) for tp_id in dictTransformationPairs.values() for t_id,p_id in tr_map.t2p_reactant if t_id==self.tp2t_forward[tp_id] ] ))
-		self.tp2p_reversereactant = list(set( [ (tp_id,p_id) for tp_id in dictTransformationPairs.values() for t_id,p_id in tr_map.t2p_reactant if t_id==self.tp2t_reverse[tp_id] ] ))
+		# ⚡ Bolt: Build reverse mappings (t_id -> p_ids) using dictionaries for O(1) lookups instead of O(N*M) nested loops
+		t_to_reactants = {}
+		for t_id, p_id in tr_map.t2p_reactant:
+			t_to_reactants.setdefault(t_id, set()).add(p_id)
 
-		self.tp2p_forwardcontext = list(set( [ (tp_id,p_id) for tp_id in dictTransformationPairs.values() for t_id,p_id in tr_map.t2p_context if t_id==self.tp2t_forward[tp_id] ] ))
-		self.tp2p_reversecontext = list(set( [ (tp_id,p_id) for tp_id in dictTransformationPairs.values() for t_id,p_id in tr_map.t2p_context if t_id==self.tp2t_reverse[tp_id] ] ))
-		
+		t_to_contexts = {}
+		for t_id, p_id in tr_map.t2p_context:
+			t_to_contexts.setdefault(t_id, set()).add(p_id)
+
+		tp2p_forwardreactant_opt = set()
+		tp2p_reversereactant_opt = set()
+		tp2p_forwardcontext_opt = set()
+		tp2p_reversecontext_opt = set()
+
+		for tp_id in dictTransformationPairs.values():
+			fwd_t_id = self.tp2t_forward.get(tp_id)
+			rev_t_id = self.tp2t_reverse.get(tp_id)
+
+			if fwd_t_id in t_to_reactants:
+				for p_id in t_to_reactants[fwd_t_id]:
+					tp2p_forwardreactant_opt.add((tp_id, p_id))
+			if rev_t_id in t_to_reactants:
+				for p_id in t_to_reactants[rev_t_id]:
+					tp2p_reversereactant_opt.add((tp_id, p_id))
+			if fwd_t_id in t_to_contexts:
+				for p_id in t_to_contexts[fwd_t_id]:
+					tp2p_forwardcontext_opt.add((tp_id, p_id))
+			if rev_t_id in t_to_contexts:
+				for p_id in t_to_contexts[rev_t_id]:
+					tp2p_reversecontext_opt.add((tp_id, p_id))
+
+		self.tp2p_forwardreactant = list(tp2p_forwardreactant_opt)
+		self.tp2p_reversereactant = list(tp2p_reversereactant_opt)
+		self.tp2p_forwardcontext = list(tp2p_forwardcontext_opt)
+		self.tp2p_reversecontext = list(tp2p_reversecontext_opt)
+
 		syndel_list = [(tp_id,t_id,dictNames.getElement('t',t_id).action) for tp_id,t_id in list(self.tp2t_forward.items())+list(self.tp2t_reverse.items()) ]
-		self.tp2p_syncontext = [ (tp_id,p_id) for tp_id,t_id,action in syndel_list for (t_id2,p_id) in tr_map.t2p_syndelcontext if t_id==t_id2 and action=='Add']
-		self.tp2p_delcontext = [ (tp_id,p_id) for tp_id,t_id,action in syndel_list for (t_id2,p_id) in tr_map.t2p_syndelcontext if t_id==t_id2 and action=='Delete']
+
+		t_to_syndel = {}
+		for t_id, p_id in tr_map.t2p_syndelcontext:
+			t_to_syndel.setdefault(t_id, set()).add(p_id)
+
+		tp2p_syncontext_opt = set()
+		tp2p_delcontext_opt = set()
+		for tp_id, t_id, action in syndel_list:
+			if t_id in t_to_syndel:
+				if action == 'Add':
+					for p_id in t_to_syndel[t_id]:
+						tp2p_syncontext_opt.add((tp_id, p_id))
+				elif action == 'Delete':
+					for p_id in t_to_syndel[t_id]:
+						tp2p_delcontext_opt.add((tp_id, p_id))
+		self.tp2p_syncontext = list(tp2p_syncontext_opt)
+		self.tp2p_delcontext = list(tp2p_delcontext_opt)
 					
 
 	
@@ -299,31 +363,36 @@ class allMaps:
 		self.irr_ids = set(names.irr.values())
 		
 	def getFlow(self, type_vector, idx_list):
+		idx_set = set(idx_list)
 		if type_vector == ['p','t']:
 			# get transformations that contain the pattern as reactant, context or delcontext
-			list1 = unq([t_id for t_id,p_id1 in self.t.t2p_reactant for p_id2 in idx_list if p_id1==p_id2])
-			list2 = unq([t_id for t_id,p_id1 in self.t.t2p_context for p_id2 in idx_list if p_id1==p_id2])
-			list3 = unq([t_id for t_id,p_id1 in self.t.t2p_syndelcontext for p_id2 in idx_list if self.t.t2action[t_id]=='Delete' and p_id1==p_id2])
+			idx_set = set(idx_list)
+			list1 = unq([t_id for t_id,p_id1 in self.t.t2p_reactant if p_id1 in idx_set])
+			list2 = unq([t_id for t_id,p_id1 in self.t.t2p_context if p_id1 in idx_set])
+			list3 = unq([t_id for t_id,p_id1 in self.t.t2p_syndelcontext if self.t.t2action[t_id]=='Delete' and p_id1 in idx_set])
 			return unq(combineLists([list1,list2,list3]))
 		elif type_vector == ['p','tp']:
 			# get transformation pairs that contain the pattern as forwardreactant, forward or reverse context, or delcontext
-			list1 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardreactant for p_id2 in idx_list if p_id1==p_id2])
-			list2 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardcontext for p_id2 in idx_list if p_id1==p_id2])
-			list3 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_reversecontext for p_id2 in idx_list if p_id1==p_id2])
-			list4 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_delcontext for p_id2 in idx_list if p_id1==p_id2])
+			idx_set = set(idx_list)
+			list1 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardreactant if p_id1 in idx_set])
+			list2 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardcontext if p_id1 in idx_set])
+			list3 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_reversecontext if p_id1 in idx_set])
+			list4 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_delcontext if p_id1 in idx_set])
 			return unq(combineLists([list1,list2,list3,list4]))
 		elif type_vector == ['p','irr']:
 			return [x for x in self.getFlow(['p','t'],idx_list) if x in self.irr_ids]
 		
 		elif type_vector == ['t','p']:
 			# get transformations that contain the pattern as product or syncontext
-			list1 = unq([p_id for t_id1,p_id in self.t.t2p_product for t_id2 in idx_list if t_id1==t_id2])
-			list2 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext for t_id2 in idx_list if self.t.t2action[t_id1]=='Add' and t_id1==t_id2])
+			idx_set = set(idx_list)
+			list1 = unq([p_id for t_id1,p_id in self.t.t2p_product if t_id1 in idx_set])
+			list2 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext if self.t.t2action[t_id1]=='Add' and t_id1 in idx_set])
 			return unq(combineLists([list1,list2]))
 		elif type_vector == ['tp','p']:
 			# get transformation pairs that contain the pattern as product or syncontext
-			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant for tp_id2 in idx_list if tp_id1==tp_id2])
-			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext for tp_id2 in idx_list if tp_id1==tp_id2])
+			idx_set = set(idx_list)
+			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant if tp_id1 in idx_set])
+			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext if tp_id1 in idx_set])
 			return unq(combineLists([list1,list2]))	
 		elif type_vector == ['irr','p']:
 			return self.getFlow(['t','p'],idx_list)
@@ -333,54 +402,62 @@ class allMaps:
 			return None
 
 	def getFlux(self,type_vector,idx_list):
+		idx_set = set(idx_list)
 		if type_vector == ['tp','p']:
 			# get patterns that are consumed or produced by a transformation pair
-			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardreactant for tp_id2 in idx_list if tp_id1==tp_id2])		
-			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant for tp_id2 in idx_list if tp_id1==tp_id2])
-			list3 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext for tp_id2 in idx_list if tp_id1==tp_id2])	
-			list4 = unq([p_id for tp_id1,p_id in self.tp.tp2p_delcontext for tp_id2 in idx_list if tp_id1==tp_id2])
+			idx_set = set(idx_list)
+			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardreactant if tp_id1 in idx_set])
+			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant if tp_id1 in idx_set])
+			list3 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext if tp_id1 in idx_set])
+			list4 = unq([p_id for tp_id1,p_id in self.tp.tp2p_delcontext if tp_id1 in idx_set])
 			return unq(combineLists([list1,list2,list3,list4]))
 		if type_vector == ['t','p']:
 			# get patterns that are consumed or produced by a transformation
-			list1 = unq([p_id for t_id1,p_id in self.t.t2p_reactant for t_id2 in idx_list if t_id1==t_id2])		
-			list2 = unq([p_id for t_id1,p_id in self.t.t2p_product for t_id2 in idx_list if t_id1==t_id2])
-			list3 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext for t_id2 in idx_list if t_id1==t_id2])
+			idx_set = set(idx_list)
+			list1 = unq([p_id for t_id1,p_id in self.t.t2p_reactant if t_id1 in idx_set])
+			list2 = unq([p_id for t_id1,p_id in self.t.t2p_product if t_id1 in idx_set])
+			list3 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext if t_id1 in idx_set])
 			return unq(combineLists([list1,list2,list3]))
 		if type_vector == ['irr','p']:
 			return self.getFlux(['t','p'],idx_list)
 		
 		if type_vector == ['p','tp']:
 			# get transformation pairs that consume or produce a pattern
-			list1 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardreactant for p_id2 in idx_list if p_id1==p_id2])		
-			list2 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_reversereactant for p_id2 in idx_list if p_id1==p_id2])
-			list3 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_syncontext for p_id2 in idx_list if p_id1==p_id2])	
-			list4 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_delcontext for p_id2 in idx_list if p_id1==p_id2])
+			idx_set = set(idx_list)
+			list1 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardreactant if p_id1 in idx_set])
+			list2 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_reversereactant if p_id1 in idx_set])
+			list3 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_syncontext if p_id1 in idx_set])
+			list4 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_delcontext if p_id1 in idx_set])
 			return unq(combineLists([list1,list2,list3,list4]))
 		if type_vector == ['p','t']:
 			# get transformations that consume or produced by a transformation
-			list1 = unq([t_id for t_id,p_id1 in self.t.t2p_reactant for p_id2 in idx_list if p_id1==p_id2])		
-			list2 = unq([t_id for t_id,p_id1 in self.t.t2p_product for p_id2 in idx_list if p_id1==p_id2])
-			list3 = unq([t_id for t_id,p_id1 in self.t.t2p_syndelcontext for p_id2 in idx_list if p_id1==p_id2])
+			idx_set = set(idx_list)
+			list1 = unq([t_id for t_id,p_id1 in self.t.t2p_reactant if p_id1 in idx_set])
+			list2 = unq([t_id for t_id,p_id1 in self.t.t2p_product if p_id1 in idx_set])
+			list3 = unq([t_id for t_id,p_id1 in self.t.t2p_syndelcontext if p_id1 in idx_set])
 			return unq(combineLists([list1,list2,list3]))
 		if type_vector == ['p','irr']:
 			return [x for x in self.getFlux(['p','t'],idx_list) if x in self.irr_ids]
 			
 	def getAll(self,type_vector,idx_list):
+		idx_set = set(idx_list)
 		if type_vector == ['tp','p']:
 			# get all patterns associated with a transformation pair
-			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardreactant for tp_id2 in idx_list if tp_id1==tp_id2])		
-			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant for tp_id2 in idx_list if tp_id1==tp_id2])
-			list3 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext for tp_id2 in idx_list if tp_id1==tp_id2])	
-			list4 = unq([p_id for tp_id1,p_id in self.tp.tp2p_delcontext for tp_id2 in idx_list if tp_id1==tp_id2])
-			list5 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardcontext for tp_id2 in idx_list if tp_id1==tp_id2])		
-			list6 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversecontext for tp_id2 in idx_list if tp_id1==tp_id2])
+			idx_set = set(idx_list)
+			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardreactant if tp_id1 in idx_set])
+			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant if tp_id1 in idx_set])
+			list3 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext if tp_id1 in idx_set])
+			list4 = unq([p_id for tp_id1,p_id in self.tp.tp2p_delcontext if tp_id1 in idx_set])
+			list5 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardcontext if tp_id1 in idx_set])
+			list6 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversecontext if tp_id1 in idx_set])
 			return unq(combineLists([list1,list2,list3,list4,list5,list6]))
 		if type_vector == ['t','p']:
 			# get all patterns associated with a transformation
-			list1 = unq([p_id for t_id1,p_id in self.t.t2p_reactant for t_id2 in idx_list if t_id1==t_id2])		
-			list2 = unq([p_id for t_id1,p_id in self.t.t2p_product for t_id2 in idx_list if t_id1==t_id2])
-			list3 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext for t_id2 in idx_list if t_id1==t_id2])
-			list4 = unq([p_id for t_id1,p_id in self.t.t2p_context for t_id2 in idx_list if t_id1==t_id2])
+			idx_set = set(idx_list)
+			list1 = unq([p_id for t_id1,p_id in self.t.t2p_reactant if t_id1 in idx_set])
+			list2 = unq([p_id for t_id1,p_id in self.t.t2p_product if t_id1 in idx_set])
+			list3 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext if t_id1 in idx_set])
+			list4 = unq([p_id for t_id1,p_id in self.t.t2p_context if t_id1 in idx_set])
 			return unq(combineLists([list1,list2,list3,list4]))
 		if type_vector == ['irr','p']:
 			return self.getAll(['t','p'],idx_list)
@@ -649,7 +726,8 @@ def graphData(names,levels,all_maps):
 		node_list.append(dict1)
 		id_counter += 1
 	def getCounter(	elemtype,x):
-		return [node for node in node_list if node['type']==elemtype and node['idx']==x][0]['id']
+		# ⚡ Bolt: Use next() with generator instead of list comprehension + [0] for O(1) early exit
+		return next((node for node in node_list if node['type']==elemtype and node['idx']==x), None)['id']
 
 			
 	edge_list=[]

@@ -162,7 +162,7 @@ sub newRateLaw
 
         # extract activation energy expression
         my $actE_expr = Expression->new();
-        $err = $actE_expr->readString( \$string_left, $model->ParamList );
+        $err = $actE_expr->readString( \$string_left, $model->ParamList, '\\)' );
         if ($err) { return undef, "Unable to parse Arrhenius ratelaw (expecting activation energy string): $err"; }
         my $actE_name = $actE_expr->getName( $model->ParamList, "_AEact0_" );
         (my $actE_param, $err) = $model->ParamList->lookup($actE_name);
@@ -179,12 +179,53 @@ sub newRateLaw
     elsif ( $string_left =~ /\S+/ )
     {
         # Handle expression for rate constant of elementary reaction
+        # Split off trailing reaction-rule options so strict expression
+        # parsing does not treat them as invalid expression characters.
+        my $expr_string = $string_left;
+        my $tail_string = '';
+        {
+            my $depth = 0;
+            my $len   = length($expr_string);
+            my $cut   = -1;
+
+            for ( my $i = 0; $i < $len; ++$i )
+            {
+                my $ch = substr( $expr_string, $i, 1 );
+                if ( $ch eq '(' )
+                {   ++$depth; next; }
+                if ( $ch eq ')' )
+                {   --$depth if $depth > 0; next; }
+
+                next if $depth > 0;
+
+                if ( $ch eq ',' )
+                {   $cut = $i; last; }
+
+                if ( $ch =~ /\s/ )
+                {
+                    my $rest = substr( $expr_string, $i );
+                    if ( $rest =~ /^\s+(?:DeleteMolecules|MoveConnected|priority\s*=|exclude_\w+\(|include_\w+\()/ )
+                    {   $cut = $i; last; }
+                }
+            }
+
+            if ( $cut >= 0 )
+            {
+                $tail_string = substr( $expr_string, $cut );
+                $expr_string = substr( $expr_string, 0, $cut );
+            }
+        }
+
         # Read expression
         my $expr = Expression->new();
         $expr->setAllowForward(1);  # don't complain if expression refers to undefined parameters
-        $err = $expr->readString( \$string_left, $model->ParamList, "," );
+        $err = $expr->readString( \$expr_string, $model->ParamList );
         if ($err) { return '', $err; }
     		$expr->setAllowForward(0);
+
+        # preserve unparsed suffix (e.g. second reversible ratelaw,
+        # include/exclude options, DeleteMolecules, MoveConnected, priority)
+        $string_left = $tail_string;
 		    
         # get name for ratelaw
         my $name = $expr->getName( $model->ParamList, $basename, $force_fcn );
@@ -485,8 +526,71 @@ sub evaluate_local
     }
     elsif ( $rl->Type eq "FunctionProduct" )
     {
-        # TODO: implement
-        die "Error in RateLaw->evaluate_local(): FunctionProduct type RateLaw is not yet supported!";
+        # get parameters corresponding to ratelaw functions
+        my $fcn_name1 = $rl->Constants->[0];
+        my $fcn_name2 = $rl->Constants->[1];
+
+        (my $rl_param1) = $model->ParamList->lookup($fcn_name1);
+        (my $rl_param2) = $model->ParamList->lookup($fcn_name2);
+
+        unless ( $rl_param1->Type eq 'Function' && $rl_param2->Type eq 'Function' )
+        {   die "Error in RateLaw->evaluate_local(): cannot find parameter for FunctionProduct RateLaw!";   }
+
+        my $fcn1 = $rl_param1->Ref;
+        my $fcn2 = $rl_param2->Ref;
+
+        my $local_dep1 = $fcn1->checkLocalDependency($model->ParamList);
+        my $local_dep2 = $fcn2->checkLocalDependency($model->ParamList);
+
+        if ( $local_dep1 || $local_dep2 )
+        {
+            my $local_expr1;
+            if ( $local_dep1 )
+            {
+                my @local_args = ( $fcn1->Name, map {$ref_map->{$_}} @{$fcn1->Args} );
+                my $expr = Expression->new(Type=>"FunctionCall", Arglist=>[@local_args]);
+                $local_expr1 = $expr->evaluate_local($model->ParamList);
+            }
+            else
+            {
+                $local_expr1 = Expression->new(Type=>"FunctionCall", Arglist=>[$fcn1->Name]);
+            }
+
+            my $local_expr2;
+            if ( $local_dep2 )
+            {
+                my @local_args = ( $fcn2->Name, map {$ref_map->{$_}} @{$fcn2->Args} );
+                my $expr = Expression->new(Type=>"FunctionCall", Arglist=>[@local_args]);
+                $local_expr2 = $expr->evaluate_local($model->ParamList);
+            }
+            else
+            {
+                $local_expr2 = Expression->new(Type=>"FunctionCall", Arglist=>[$fcn2->Name]);
+            }
+
+            my $local_expr = Expression::operate("*", [$local_expr1, $local_expr2], $model->ParamList);
+
+            my $fingerprint = $local_expr->toString($model->ParamList, 0, 2);
+
+            if ( exists $rl->LocalRatelawsHash->{$fingerprint} )
+            {
+                $local_rl = $rl->LocalRatelawsHash->{$fingerprint};
+            }
+            else
+            {
+                my $base_name = $rxn->RxnRule->Name;
+                $base_name =~ s/[^\w]+//g;
+                my $local_name = $local_expr->getName( $model->ParamList, "_${base_name}_local" );
+                (my $local_param, $err) = $model->ParamList->lookup($local_name);
+                unless (defined $local_param) { die "RateLaw::evaluate_local() - Some problem creating param name for local ratelaw ($err)"; }
+
+                my $rl_type = $local_param->Type eq "Function" ? "Function" : "Ele";
+                $local_rl = RateLaw->new( Type=>$rl_type, Constants=>[$local_name], Factor=>$rl->Factor, TotalRate=>0 );
+                ++$RateLaw::n_Ratelaw;
+
+                $rl->LocalRatelawsHash->{$fingerprint} = $local_rl;
+            }
+        }
     }
     elsif ( $rl->Type eq "Function" )
     {
@@ -717,29 +821,11 @@ sub toCVodeString
         
         my $fcn = $fcn_param->Ref;
 
-        # get CVodeRefs for tagged reactants
-        # TODO: this may be obsolete due to local fnc evaluation
-        my @fcn_args = ();
-        if ( @{$fcn->Args} )
-        {
-            if ( ref $rrefs eq 'HASH' )
-            {
-                foreach my $tag (  @{$fcn->Args} )
-                {
-                    unless ( (exists $rrefs->{$tag}) and (exists $reactants->[$rrefs->{$tag}]) )
-                    {   return "could not find reactant or tag corresponding to ratelaw argument!";   }
-                    
-                    push @fcn_args, ($reactants->[$rrefs->{$tag}])->getCVodeName;
-                }
-            }
-            else
-            {   return "ratelaw depends on tagged reactants and RRefs hash is missing!";   }
-        }
-
         # add references to the expressions and observables arrays
-        #push @rl_terms, $fcn->toCVodeString( $plist, {'fcn_mode' => 'call'});
-        push @fcn_args, 'expressions', 'observables';
-        push @rl_terms, $fcn->Name . '(' . join( ',', @fcn_args ) . ')';
+        my $fcn_str = $fcn->toCVodeString( $plist, {'fcn_mode' => 'call', 'rrefs' => $rrefs, 'reactants' => $reactants});
+        if ($fcn_str =~ /^could not find/ || $fcn_str =~ /^ratelaw depends on/)
+        {   return $fcn_str;   }
+        push @rl_terms, $fcn_str;
 
         # get reactant species  
         foreach my $reactant ( @$reactants )
@@ -821,28 +907,10 @@ sub toMatlabString
         
         my $fcn = $fcn_param->Ref;
 
-        # get MatlabRefs for tagged reactants
-        # TODO: this may be obsolete due to local fnc evaluation
-        my @fcn_args = ();
-        if ( @{$fcn->Args} )
-        {
-            if ( ref $rrefs eq 'HASH' )
-            {
-                foreach my $tag (  @{$fcn->Args} )
-                {
-                    unless ( (exists $rrefs->{$tag}) and (exists $reactants->[$rrefs->{$tag}]) )
-                    {   return "could not find reactant or tag corresponding to ratelaw argument!";   }
-                    
-                    push @fcn_args, ($reactants->[$rrefs->{$tag}])->getMatlabName();
-                }
-            }
-            else
-            {   return "ratelaw depends on tagged reactants and RRefs hash is missing!";   }
-        }
-
-        # TODO: move this functionality to Function class.        
-        push @fcn_args, 'expressions', 'observables';
-        push @rl_terms, $fcn->Name . '(' . join( ',', @fcn_args ) . ')';
+        my $fcn_str = $fcn->toMatlabString( $plist, {'fcn_mode' => 'call', 'rrefs' => $rrefs, 'reactants' => $reactants});
+        if ($fcn_str =~ /^could not find/ || $fcn_str =~ /^ratelaw depends on/)
+        {   return $fcn_str;   }
+        push @rl_terms, $fcn_str;
 
         # get reactant species  
         foreach my $reactant ( @$reactants )
@@ -1168,7 +1236,34 @@ sub validate
                 }
             }
         }
-        # TODO: verify that actE is independent of deltaG (is this possible here?)
+        if ( defined $model )
+        {
+            my ($actE_param, $err2) = $model->ParamList->lookup($rl->Constants->[1]);
+            if ( !$err2 && defined $actE_param && defined $actE_param->Expr )
+            {
+                if ( defined $model->EnergyPatterns )
+                {
+                    foreach my $epatt ( @{$model->EnergyPatterns} )
+                    {
+                        if ( defined $epatt->Gf )
+                        {
+                            my $epatt_vars = $epatt->Gf->getVariables( $model->ParamList );
+                            foreach my $type ( keys %$epatt_vars )
+                            {
+                                foreach my $varname ( keys %{$epatt_vars->{$type}} )
+                                {
+                                    my ($dep, $dep_err) = $actE_param->Expr->depends( $model->ParamList, $varname );
+                                    if ( $dep )
+                                    {
+                                        return sprintf("Arrhenius ratelaw activation energy '%s' must be independent of energy pattern parameter '%s'", $rl->Constants->[1], $varname);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     else
     {   return sprintf("Unrecognized RateLaw type %s", $rl->Type);   }
