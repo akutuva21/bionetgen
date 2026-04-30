@@ -1523,11 +1523,12 @@ std::size_t ReactionRule::expandRule(
     }
 
     for (std::size_t i = 0; i < std::min(speciesList.size(), speciesBoundary); ++i) {
-        const std::size_t lastIter = lastProcessedInIteration_[i];
+        const bool hasIter = (i < lastProcessedInIteration_.size() && lastProcessedInIteration_[i] != static_cast<std::size_t>(-1));
+        const std::size_t lastIter = hasIter ? lastProcessedInIteration_[i] : 0;
+
         const bool notYetProcessed = !speciesList.get(i).rulesApplied();
-        const bool notProcessedByThisRuleInCurrentIteration =
-            (lastIter == static_cast<std::size_t>(-1) || lastIter < currentIteration);
-        const bool neverProcessedByThisRule = (lastIter == static_cast<std::size_t>(-1));
+        const bool notProcessedByThisRuleInCurrentIteration = (!hasIter || lastIter < currentIteration);
+        const bool neverProcessedByThisRule = !hasIter;
 
         // Unimolecular: only process species never seen by this rule before.
         // Using neverProcessedByThisRule (not just notProcessedInCurrentIteration)
@@ -1554,7 +1555,7 @@ std::size_t ReactionRule::expandRule(
         std::cerr << "[DEBUG] Rule " << ruleName_ << " iter=" << currentIteration
                   << ": newSpecies={";
         for (auto idx : newSpecies) std::cerr << idx << ",";
-        std::cerr << "}\n";
+        std::cerr << "} trackedCapacity=" << lastProcessedInIteration_.size() << "\n";
     }
     if (newSpecies.empty()) {
         return 0;
@@ -2138,14 +2139,32 @@ bool ReactionRule::buildReaction(
     // graph before splitting. Uses Perl's separated_by_volume logic for surface transport.
     // Also handles peer-level transport (e.g., @Cell1 <-> @Cell2 with no parent/child).
     if (!g_compartmentDimensions.empty()) {
+        auto endIt = g_compartmentDimensions.end();
+        std::string lastCompR;
+        std::string lastCompP;
+        std::unordered_map<std::string, int>::const_iterator lastDimRIt = endIt;
+        std::unordered_map<std::string, int>::const_iterator lastDimPIt = endIt;
+
         for (std::size_t pi = 0; pi < reactantPatterns_.size() && pi < productPatterns_.size(); ++pi) {
             const auto& compR = reactantPatterns_[pi].getCompartment();
             const auto& compP = (pi < productPatterns_.size()) ? productPatterns_[pi].getCompartment() : std::string();
             if (compR.empty() || compP.empty() || compR == compP) continue;
 
-            auto dimRIt = g_compartmentDimensions.find(compR);
-            auto dimPIt = g_compartmentDimensions.find(compP);
-            if (dimRIt == g_compartmentDimensions.end() || dimPIt == g_compartmentDimensions.end()) continue;
+            auto dimRIt = lastDimRIt;
+            if (lastCompR != compR) {
+                dimRIt = g_compartmentDimensions.find(compR);
+                lastCompR = compR;
+                lastDimRIt = dimRIt;
+            }
+
+            auto dimPIt = lastDimPIt;
+            if (lastCompP != compP) {
+                dimPIt = g_compartmentDimensions.find(compP);
+                lastCompP = compP;
+                lastDimPIt = dimPIt;
+            }
+
+            if (dimRIt == endIt || dimPIt == endIt) continue;
             if (dimRIt->second != dimPIt->second) continue; // must be same dimension
 
             // Build compartment mapping based on transport type
