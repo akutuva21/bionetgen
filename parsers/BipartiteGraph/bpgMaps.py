@@ -255,10 +255,27 @@ class TransformationMap:
 
 		self.t2p_context = list(self.t2p_context)
 		
-		self.t2p_syndelcontext = list(set( [ (dictTransformations[t],dictPatterns[p]) for r in dictRules for idx,t in enumerate(r.transformations) for p in r.syndel_context[idx] if t.isSynDel() ] ))
+		# ⚡ Bolt: Use a set and construct the mapping iteratively to avoid O(N*M) list comprehensions
+		t2p_syndelcontext_set = set()
+		t2p_syncontext_set = set()
+		t2p_delcontext_set = set()
 		
-		self.t2p_syncontext = list(set( [ (dictTransformations[t],dictPatterns[p]) for r in dictRules for idx,t in enumerate(r.transformations) for p in r.syncontext[idx] if t.action=='Add' ] ))
-		self.t2p_delcontext = list(set( [ (dictTransformations[t],dictPatterns[p]) for r in dictRules for idx,t in enumerate(r.transformations) for p in r.delcontext[idx] if t.action=='Delete' ] ))
+		for r in dictRules:
+			for idx,t in enumerate(r.transformations):
+				dt = dictTransformations[t]
+				if t.isSynDel():
+					for p in r.syndel_context[idx]:
+						t2p_syndelcontext_set.add((dt, dictPatterns[p]))
+				if t.action == 'Add':
+					for p in r.syncontext[idx]:
+						t2p_syncontext_set.add((dt, dictPatterns[p]))
+				elif t.action == 'Delete':
+					for p in r.delcontext[idx]:
+						t2p_delcontext_set.add((dt, dictPatterns[p]))
+
+		self.t2p_syndelcontext = list(t2p_syndelcontext_set)
+		self.t2p_syncontext = list(t2p_syncontext_set)
+		self.t2p_delcontext = list(t2p_delcontext_set)
 		
 class TransformationPairMap:
 	'''
@@ -276,56 +293,60 @@ class TransformationPairMap:
 		self.tp2t_forward = dict([ [dictTransformationPairs[tp], dictTransformations[tp.forward]] for tp in dictTransformationPairs ] )
 		self.tp2t_reverse = dict([ [dictTransformationPairs[tp], dictTransformations[tp.reverse]] for tp in dictTransformationPairs ] )
 
-		t2p_reactant_dict = {}
+		# ⚡ Bolt: Build reverse mappings (t_id -> p_ids) using dictionaries for O(1) lookups instead of O(N*M) nested loops
+		t_to_reactants = {}
 		for t_id, p_id in tr_map.t2p_reactant:
-			t2p_reactant_dict.setdefault(t_id, set()).add(p_id)
+			t_to_reactants.setdefault(t_id, set()).add(p_id)
 
-		self.tp2p_forwardreactant = []
-		self.tp2p_reversereactant = []
-		for tp_id in dictTransformationPairs.values():
-			t_id_f = self.tp2t_forward.get(tp_id)
-			if t_id_f in t2p_reactant_dict:
-				for p_id in t2p_reactant_dict[t_id_f]:
-					self.tp2p_forwardreactant.append((tp_id, p_id))
-			t_id_r = self.tp2t_reverse.get(tp_id)
-			if t_id_r in t2p_reactant_dict:
-				for p_id in t2p_reactant_dict[t_id_r]:
-					self.tp2p_reversereactant.append((tp_id, p_id))
-		self.tp2p_forwardreactant = list(set(self.tp2p_forwardreactant))
-		self.tp2p_reversereactant = list(set(self.tp2p_reversereactant))
-
-		t2p_context_dict = {}
+		t_to_contexts = {}
 		for t_id, p_id in tr_map.t2p_context:
-			t2p_context_dict.setdefault(t_id, set()).add(p_id)
+			t_to_contexts.setdefault(t_id, set()).add(p_id)
 
-		self.tp2p_forwardcontext = []
-		self.tp2p_reversecontext = []
+		tp2p_forwardreactant_opt = set()
+		tp2p_reversereactant_opt = set()
+		tp2p_forwardcontext_opt = set()
+		tp2p_reversecontext_opt = set()
+
 		for tp_id in dictTransformationPairs.values():
-			t_id_f = self.tp2t_forward.get(tp_id)
-			if t_id_f in t2p_context_dict:
-				for p_id in t2p_context_dict[t_id_f]:
-					self.tp2p_forwardcontext.append((tp_id, p_id))
-			t_id_r = self.tp2t_reverse.get(tp_id)
-			if t_id_r in t2p_context_dict:
-				for p_id in t2p_context_dict[t_id_r]:
-					self.tp2p_reversecontext.append((tp_id, p_id))
-		self.tp2p_forwardcontext = list(set(self.tp2p_forwardcontext))
-		self.tp2p_reversecontext = list(set(self.tp2p_reversecontext))
-		
-		syndel_list = [(tp_id,t_id,dictNames.getElement('t',t_id).action) for tp_id,t_id in list(self.tp2t_forward.items())+list(self.tp2t_reverse.items()) ]
-		t2p_syndelcontext_dict = {}
-		for t_id, p_id in tr_map.t2p_syndelcontext:
-			t2p_syndelcontext_dict.setdefault(t_id, set()).add(p_id)
+			fwd_t_id = self.tp2t_forward.get(tp_id)
+			rev_t_id = self.tp2t_reverse.get(tp_id)
 
-		self.tp2p_syncontext = []
-		self.tp2p_delcontext = []
+			if fwd_t_id in t_to_reactants:
+				for p_id in t_to_reactants[fwd_t_id]:
+					tp2p_forwardreactant_opt.add((tp_id, p_id))
+			if rev_t_id in t_to_reactants:
+				for p_id in t_to_reactants[rev_t_id]:
+					tp2p_reversereactant_opt.add((tp_id, p_id))
+			if fwd_t_id in t_to_contexts:
+				for p_id in t_to_contexts[fwd_t_id]:
+					tp2p_forwardcontext_opt.add((tp_id, p_id))
+			if rev_t_id in t_to_contexts:
+				for p_id in t_to_contexts[rev_t_id]:
+					tp2p_reversecontext_opt.add((tp_id, p_id))
+
+		self.tp2p_forwardreactant = list(tp2p_forwardreactant_opt)
+		self.tp2p_reversereactant = list(tp2p_reversereactant_opt)
+		self.tp2p_forwardcontext = list(tp2p_forwardcontext_opt)
+		self.tp2p_reversecontext = list(tp2p_reversecontext_opt)
+
+		syndel_list = [(tp_id,t_id,dictNames.getElement('t',t_id).action) for tp_id,t_id in list(self.tp2t_forward.items())+list(self.tp2t_reverse.items()) ]
+
+		t_to_syndel = {}
+		for t_id, p_id in tr_map.t2p_syndelcontext:
+			t_to_syndel.setdefault(t_id, set()).add(p_id)
+
+		tp2p_syncontext_opt = set()
+		tp2p_delcontext_opt = set()
 		for tp_id, t_id, action in syndel_list:
-			if t_id in t2p_syndelcontext_dict:
-				for p_id in t2p_syndelcontext_dict[t_id]:
-					if action == 'Add':
-						self.tp2p_syncontext.append((tp_id, p_id))
-					elif action == 'Delete':
-						self.tp2p_delcontext.append((tp_id, p_id))
+			if t_id in t_to_syndel:
+				if action == 'Add':
+					for p_id in t_to_syndel[t_id]:
+						tp2p_syncontext_opt.add((tp_id, p_id))
+				elif action == 'Delete':
+					for p_id in t_to_syndel[t_id]:
+						tp2p_delcontext_opt.add((tp_id, p_id))
+		self.tp2p_syncontext = list(tp2p_syncontext_opt)
+		self.tp2p_delcontext = list(tp2p_delcontext_opt)
 					
 
 	
@@ -342,6 +363,7 @@ class allMaps:
 		self.irr_ids = set(names.irr.values())
 		
 	def getFlow(self, type_vector, idx_list):
+		idx_set = set(idx_list)
 		if type_vector == ['p','t']:
 			# get transformations that contain the pattern as reactant, context or delcontext
 			idx_set = set(idx_list)
@@ -380,6 +402,7 @@ class allMaps:
 			return None
 
 	def getFlux(self,type_vector,idx_list):
+		idx_set = set(idx_list)
 		if type_vector == ['tp','p']:
 			# get patterns that are consumed or produced by a transformation pair
 			idx_set = set(idx_list)
@@ -417,6 +440,7 @@ class allMaps:
 			return [x for x in self.getFlux(['p','t'],idx_list) if x in self.irr_ids]
 			
 	def getAll(self,type_vector,idx_list):
+		idx_set = set(idx_list)
 		if type_vector == ['tp','p']:
 			# get all patterns associated with a transformation pair
 			idx_set = set(idx_list)
