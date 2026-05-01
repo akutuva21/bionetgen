@@ -362,103 +362,87 @@ class allMaps:
 		self.names = names
 		self.irr_ids = set(names.irr.values())
 		
+		# ⚡ Bolt: Pre-compute dictionaries for O(1) lookups instead of O(N) list scans
+		def build_dict(lst, key_idx, val_idx, cond=None):
+			d = {}
+			for item in lst:
+				if cond is None or cond(item):
+					d.setdefault(item[key_idx], set()).add(item[val_idx])
+			return d
+
+		self._p2t_reactant = build_dict(self.t.t2p_reactant, 1, 0)
+		self._p2t_product = build_dict(self.t.t2p_product, 1, 0)
+		self._p2t_context = build_dict(self.t.t2p_context, 1, 0)
+		self._p2t_delcontext = build_dict(self.t.t2p_syndelcontext, 1, 0, lambda i: self.t.t2action[i[0]]=='Delete')
+		self._p2t_syncontext = build_dict(self.t.t2p_syndelcontext, 1, 0, lambda i: self.t.t2action[i[0]]=='Add')
+		self._p2t_syndelcontext = build_dict(self.t.t2p_syndelcontext, 1, 0)
+
+		self._p2tp_forwardreactant = build_dict(self.tp.tp2p_forwardreactant, 1, 0)
+		self._p2tp_reversereactant = build_dict(self.tp.tp2p_reversereactant, 1, 0)
+		self._p2tp_forwardcontext = build_dict(self.tp.tp2p_forwardcontext, 1, 0)
+		self._p2tp_reversecontext = build_dict(self.tp.tp2p_reversecontext, 1, 0)
+		self._p2tp_delcontext = build_dict(self.tp.tp2p_delcontext, 1, 0)
+		self._p2tp_syncontext = build_dict(self.tp.tp2p_syncontext, 1, 0)
+
+		self._t2p_reactant = build_dict(self.t.t2p_reactant, 0, 1)
+		self._t2p_product = build_dict(self.t.t2p_product, 0, 1)
+		self._t2p_context = build_dict(self.t.t2p_context, 0, 1)
+		self._t2p_delcontext = build_dict(self.t.t2p_syndelcontext, 0, 1, lambda i: self.t.t2action[i[0]]=='Delete')
+		self._t2p_syncontext = build_dict(self.t.t2p_syndelcontext, 0, 1, lambda i: self.t.t2action[i[0]]=='Add')
+		self._t2p_syndelcontext = build_dict(self.t.t2p_syndelcontext, 0, 1)
+
+		self._tp2p_forwardreactant = build_dict(self.tp.tp2p_forwardreactant, 0, 1)
+		self._tp2p_reversereactant = build_dict(self.tp.tp2p_reversereactant, 0, 1)
+		self._tp2p_forwardcontext = build_dict(self.tp.tp2p_forwardcontext, 0, 1)
+		self._tp2p_reversecontext = build_dict(self.tp.tp2p_reversecontext, 0, 1)
+		self._tp2p_delcontext = build_dict(self.tp.tp2p_delcontext, 0, 1)
+		self._tp2p_syncontext = build_dict(self.tp.tp2p_syncontext, 0, 1)
+
+	def _get_mapped(self, dicts, idx_list):
+		res = set()
+		for d in dicts:
+			for idx in idx_list:
+				if idx in d:
+					res.update(d[idx])
+		return list(res)
+
 	def getFlow(self, type_vector, idx_list):
-		idx_set = set(idx_list)
 		if type_vector == ['p','t']:
-			# get transformations that contain the pattern as reactant, context or delcontext
-			idx_set = set(idx_list)
-			list1 = unq([t_id for t_id,p_id1 in self.t.t2p_reactant if p_id1 in idx_set])
-			list2 = unq([t_id for t_id,p_id1 in self.t.t2p_context if p_id1 in idx_set])
-			list3 = unq([t_id for t_id,p_id1 in self.t.t2p_syndelcontext if self.t.t2action[t_id]=='Delete' and p_id1 in idx_set])
-			return unq(combineLists([list1,list2,list3]))
+			return self._get_mapped([self._p2t_reactant, self._p2t_context, self._p2t_delcontext], idx_list)
 		elif type_vector == ['p','tp']:
-			# get transformation pairs that contain the pattern as forwardreactant, forward or reverse context, or delcontext
-			idx_set = set(idx_list)
-			list1 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardreactant if p_id1 in idx_set])
-			list2 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardcontext if p_id1 in idx_set])
-			list3 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_reversecontext if p_id1 in idx_set])
-			list4 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_delcontext if p_id1 in idx_set])
-			return unq(combineLists([list1,list2,list3,list4]))
+			return self._get_mapped([self._p2tp_forwardreactant, self._p2tp_forwardcontext, self._p2tp_reversecontext, self._p2tp_delcontext], idx_list)
 		elif type_vector == ['p','irr']:
 			return [x for x in self.getFlow(['p','t'],idx_list) if x in self.irr_ids]
-		
 		elif type_vector == ['t','p']:
-			# get transformations that contain the pattern as product or syncontext
-			idx_set = set(idx_list)
-			list1 = unq([p_id for t_id1,p_id in self.t.t2p_product if t_id1 in idx_set])
-			list2 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext if self.t.t2action[t_id1]=='Add' and t_id1 in idx_set])
-			return unq(combineLists([list1,list2]))
+			return self._get_mapped([self._t2p_product, self._t2p_syncontext], idx_list)
 		elif type_vector == ['tp','p']:
-			# get transformation pairs that contain the pattern as product or syncontext
-			idx_set = set(idx_list)
-			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant if tp_id1 in idx_set])
-			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext if tp_id1 in idx_set])
-			return unq(combineLists([list1,list2]))	
+			return self._get_mapped([self._tp2p_reversereactant, self._tp2p_syncontext], idx_list)
 		elif type_vector == ['irr','p']:
 			return self.getFlow(['t','p'],idx_list)
-			
 		else:
 			print "Bad Type Vector!"
 			return None
 
 	def getFlux(self,type_vector,idx_list):
-		idx_set = set(idx_list)
 		if type_vector == ['tp','p']:
-			# get patterns that are consumed or produced by a transformation pair
-			idx_set = set(idx_list)
-			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardreactant if tp_id1 in idx_set])
-			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant if tp_id1 in idx_set])
-			list3 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext if tp_id1 in idx_set])
-			list4 = unq([p_id for tp_id1,p_id in self.tp.tp2p_delcontext if tp_id1 in idx_set])
-			return unq(combineLists([list1,list2,list3,list4]))
+			return self._get_mapped([self._tp2p_forwardreactant, self._tp2p_reversereactant, self._tp2p_syncontext, self._tp2p_delcontext], idx_list)
 		if type_vector == ['t','p']:
-			# get patterns that are consumed or produced by a transformation
-			idx_set = set(idx_list)
-			list1 = unq([p_id for t_id1,p_id in self.t.t2p_reactant if t_id1 in idx_set])
-			list2 = unq([p_id for t_id1,p_id in self.t.t2p_product if t_id1 in idx_set])
-			list3 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext if t_id1 in idx_set])
-			return unq(combineLists([list1,list2,list3]))
+			return self._get_mapped([self._t2p_reactant, self._t2p_product, self._t2p_syndelcontext], idx_list)
 		if type_vector == ['irr','p']:
 			return self.getFlux(['t','p'],idx_list)
 		
 		if type_vector == ['p','tp']:
-			# get transformation pairs that consume or produce a pattern
-			idx_set = set(idx_list)
-			list1 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_forwardreactant if p_id1 in idx_set])
-			list2 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_reversereactant if p_id1 in idx_set])
-			list3 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_syncontext if p_id1 in idx_set])
-			list4 = unq([tp_id for tp_id,p_id1 in self.tp.tp2p_delcontext if p_id1 in idx_set])
-			return unq(combineLists([list1,list2,list3,list4]))
+			return self._get_mapped([self._p2tp_forwardreactant, self._p2tp_reversereactant, self._p2tp_syncontext, self._p2tp_delcontext], idx_list)
 		if type_vector == ['p','t']:
-			# get transformations that consume or produced by a transformation
-			idx_set = set(idx_list)
-			list1 = unq([t_id for t_id,p_id1 in self.t.t2p_reactant if p_id1 in idx_set])
-			list2 = unq([t_id for t_id,p_id1 in self.t.t2p_product if p_id1 in idx_set])
-			list3 = unq([t_id for t_id,p_id1 in self.t.t2p_syndelcontext if p_id1 in idx_set])
-			return unq(combineLists([list1,list2,list3]))
+			return self._get_mapped([self._p2t_reactant, self._p2t_product, self._p2t_syndelcontext], idx_list)
 		if type_vector == ['p','irr']:
 			return [x for x in self.getFlux(['p','t'],idx_list) if x in self.irr_ids]
 			
 	def getAll(self,type_vector,idx_list):
-		idx_set = set(idx_list)
 		if type_vector == ['tp','p']:
-			# get all patterns associated with a transformation pair
-			idx_set = set(idx_list)
-			list1 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardreactant if tp_id1 in idx_set])
-			list2 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversereactant if tp_id1 in idx_set])
-			list3 = unq([p_id for tp_id1,p_id in self.tp.tp2p_syncontext if tp_id1 in idx_set])
-			list4 = unq([p_id for tp_id1,p_id in self.tp.tp2p_delcontext if tp_id1 in idx_set])
-			list5 = unq([p_id for tp_id1,p_id in self.tp.tp2p_forwardcontext if tp_id1 in idx_set])
-			list6 = unq([p_id for tp_id1,p_id in self.tp.tp2p_reversecontext if tp_id1 in idx_set])
-			return unq(combineLists([list1,list2,list3,list4,list5,list6]))
+			return self._get_mapped([self._tp2p_forwardreactant, self._tp2p_reversereactant, self._tp2p_syncontext, self._tp2p_delcontext, self._tp2p_forwardcontext, self._tp2p_reversecontext], idx_list)
 		if type_vector == ['t','p']:
-			# get all patterns associated with a transformation
-			idx_set = set(idx_list)
-			list1 = unq([p_id for t_id1,p_id in self.t.t2p_reactant if t_id1 in idx_set])
-			list2 = unq([p_id for t_id1,p_id in self.t.t2p_product if t_id1 in idx_set])
-			list3 = unq([p_id for t_id1,p_id in self.t.t2p_syndelcontext if t_id1 in idx_set])
-			list4 = unq([p_id for t_id1,p_id in self.t.t2p_context if t_id1 in idx_set])
-			return unq(combineLists([list1,list2,list3,list4]))
+			return self._get_mapped([self._t2p_reactant, self._t2p_product, self._t2p_syndelcontext, self._t2p_context], idx_list)
 		if type_vector == ['irr','p']:
 			return self.getAll(['t','p'],idx_list)
 					
@@ -527,6 +511,7 @@ class Trace:
 	def __init__(self,trace,tracetype):
 		self.trace = trace
 		self.type = tracetype
+		self._set = set(trace)
 		
 	def __str__(self):
 		return "->".join([str(x) for x in self.trace])
@@ -538,10 +523,12 @@ class Trace:
 		return self.trace[-1]
 		
 	def has(self,item):
-		return item in self.trace
+		# ⚡ Bolt: O(1) membership check using a set instead of O(N) list scan
+		return item in self._set
 		
 	def extend(self,item):
 		self.trace.append(item)
+		self._set.add(item)
 		
 	def flip(self):
 		return Trace(list(reversed(self.trace)),self.type)
@@ -601,6 +588,11 @@ def getTraces(start,end,triplets,elemtype,names):
 	valid_traces =TraceStack([],elemtype)
 	invalid_traces =TraceStack([],elemtype)
 
+	# ⚡ Bolt: Pre-group triplets by x to avoid O(N) list scans on every trace extension
+	triplets_by_x = {}
+	for x, y, z in triplets:
+		triplets_by_x.setdefault(x, []).append(z)
+
 	# start with a stack of traces
 	# pick the top of the stack
 	# check if it is a trace that ends the way we want it, i.e. with an element in the end-list
@@ -616,7 +608,7 @@ def getTraces(start,end,triplets,elemtype,names):
 		if trace.getLast() in end:
 			valid_traces.addTrace(trace)
 		else:
-			next_candidates = [z for x,y,z in triplets if x==trace.getLast() and not trace.has(z)] 
+			next_candidates = [z for z in triplets_by_x.get(trace.getLast(), []) if not trace.has(z)]
 			if len(next_candidates) == 0:
 				invalid_traces.addTrace(trace)
 			for item in next_candidates:
