@@ -362,61 +362,101 @@ class allMaps:
 		self.names = names
 		self.irr_ids = set(names.irr.values())
 		
-		# ⚡ Bolt: Pre-compute dictionaries for O(1) lookups instead of O(N) list scans
-		def build_dict(lst, key_idx, val_idx, cond=None):
-			d = {}
-			for item in lst:
-				if cond is None or cond(item):
-					d.setdefault(item[key_idx], set()).add(item[val_idx])
-			return d
+		# ⚡ Bolt: Build reverse mappings for O(1) flow lookups instead of O(N*M) list comprehensions
+		self._p2t_reactant = {}
+		self._t2p_reactant = {}
+		for t_id, p_id in self.t.t2p_reactant:
+			self._p2t_reactant.setdefault(p_id, set()).add(t_id)
+			self._t2p_reactant.setdefault(t_id, set()).add(p_id)
 
-		self._p2t_reactant = build_dict(self.t.t2p_reactant, 1, 0)
-		self._p2t_product = build_dict(self.t.t2p_product, 1, 0)
-		self._p2t_context = build_dict(self.t.t2p_context, 1, 0)
-		self._p2t_delcontext = build_dict(self.t.t2p_syndelcontext, 1, 0, lambda i: self.t.t2action[i[0]]=='Delete')
-		self._p2t_syncontext = build_dict(self.t.t2p_syndelcontext, 1, 0, lambda i: self.t.t2action[i[0]]=='Add')
-		self._p2t_syndelcontext = build_dict(self.t.t2p_syndelcontext, 1, 0)
+		self._p2t_context = {}
+		self._t2p_context = {}
+		for t_id, p_id in self.t.t2p_context:
+			self._p2t_context.setdefault(p_id, set()).add(t_id)
+			self._t2p_context.setdefault(t_id, set()).add(p_id)
 
-		self._p2tp_forwardreactant = build_dict(self.tp.tp2p_forwardreactant, 1, 0)
-		self._p2tp_reversereactant = build_dict(self.tp.tp2p_reversereactant, 1, 0)
-		self._p2tp_forwardcontext = build_dict(self.tp.tp2p_forwardcontext, 1, 0)
-		self._p2tp_reversecontext = build_dict(self.tp.tp2p_reversecontext, 1, 0)
-		self._p2tp_delcontext = build_dict(self.tp.tp2p_delcontext, 1, 0)
-		self._p2tp_syncontext = build_dict(self.tp.tp2p_syncontext, 1, 0)
+		self._p2t_syndel = {}
+		self._t2p_syndel = {}
+		for t_id, p_id in self.t.t2p_syndelcontext:
+			self._p2t_syndel.setdefault(p_id, set()).add(t_id)
+			self._t2p_syndel.setdefault(t_id, set()).add(p_id)
 
-		self._t2p_reactant = build_dict(self.t.t2p_reactant, 0, 1)
-		self._t2p_product = build_dict(self.t.t2p_product, 0, 1)
-		self._t2p_context = build_dict(self.t.t2p_context, 0, 1)
-		self._t2p_delcontext = build_dict(self.t.t2p_syndelcontext, 0, 1, lambda i: self.t.t2action[i[0]]=='Delete')
-		self._t2p_syncontext = build_dict(self.t.t2p_syndelcontext, 0, 1, lambda i: self.t.t2action[i[0]]=='Add')
-		self._t2p_syndelcontext = build_dict(self.t.t2p_syndelcontext, 0, 1)
+		self._p2t_product = {}
+		self._t2p_product = {}
+		for t_id, p_id in self.t.t2p_product:
+			self._p2t_product.setdefault(p_id, set()).add(t_id)
+			self._t2p_product.setdefault(t_id, set()).add(p_id)
 
-		self._tp2p_forwardreactant = build_dict(self.tp.tp2p_forwardreactant, 0, 1)
-		self._tp2p_reversereactant = build_dict(self.tp.tp2p_reversereactant, 0, 1)
-		self._tp2p_forwardcontext = build_dict(self.tp.tp2p_forwardcontext, 0, 1)
-		self._tp2p_reversecontext = build_dict(self.tp.tp2p_reversecontext, 0, 1)
-		self._tp2p_delcontext = build_dict(self.tp.tp2p_delcontext, 0, 1)
-		self._tp2p_syncontext = build_dict(self.tp.tp2p_syncontext, 0, 1)
+		self._p2tp_freactant = {}
+		self._tp2p_freactant = {}
+		for tp_id, p_id in self.tp.tp2p_forwardreactant:
+			self._p2tp_freactant.setdefault(p_id, set()).add(tp_id)
+			self._tp2p_freactant.setdefault(tp_id, set()).add(p_id)
 
-	def _get_mapped(self, dicts, idx_list):
+		self._p2tp_fcontext = {}
+		self._tp2p_fcontext = {}
+		for tp_id, p_id in self.tp.tp2p_forwardcontext:
+			self._p2tp_fcontext.setdefault(p_id, set()).add(tp_id)
+			self._tp2p_fcontext.setdefault(tp_id, set()).add(p_id)
+
+		self._p2tp_rcontext = {}
+		self._tp2p_rcontext = {}
+		for tp_id, p_id in self.tp.tp2p_reversecontext:
+			self._p2tp_rcontext.setdefault(p_id, set()).add(tp_id)
+			self._tp2p_rcontext.setdefault(tp_id, set()).add(p_id)
+
+		self._p2tp_delcontext = {}
+		self._tp2p_delcontext = {}
+		for tp_id, p_id in self.tp.tp2p_delcontext:
+			self._p2tp_delcontext.setdefault(p_id, set()).add(tp_id)
+			self._tp2p_delcontext.setdefault(tp_id, set()).add(p_id)
+
+		self._p2tp_rreactant = {}
+		self._tp2p_rreactant = {}
+		for tp_id, p_id in self.tp.tp2p_reversereactant:
+			self._p2tp_rreactant.setdefault(p_id, set()).add(tp_id)
+			self._tp2p_rreactant.setdefault(tp_id, set()).add(p_id)
+
+		self._p2tp_syncontext = {}
+		self._tp2p_syncontext = {}
+		for tp_id, p_id in self.tp.tp2p_syncontext:
+			self._p2tp_syncontext.setdefault(p_id, set()).add(tp_id)
+			self._tp2p_syncontext.setdefault(tp_id, set()).add(p_id)
+
+	def _lookup(self, lookup_dict, keys):
 		res = set()
-		for d in dicts:
-			for idx in idx_list:
-				if idx in d:
-					res.update(d[idx])
-		return list(res)
+		for k in keys:
+			if k in lookup_dict:
+				res.update(lookup_dict[k])
+		return res
 
 	def getFlow(self, type_vector, idx_list):
 		if type_vector == ['p','t']:
-			return self._get_mapped([self._p2t_reactant, self._p2t_context, self._p2t_delcontext], idx_list)
+			res = self._lookup(self._p2t_reactant, idx_list)
+			res.update(self._lookup(self._p2t_context, idx_list))
+			for t_id in self._lookup(self._p2t_syndel, idx_list):
+				if self.t.t2action.get(t_id) == 'Delete':
+					res.add(t_id)
+			return list(res)
 		elif type_vector == ['p','tp']:
-			return self._get_mapped([self._p2tp_forwardreactant, self._p2tp_forwardcontext, self._p2tp_reversecontext, self._p2tp_delcontext], idx_list)
+			res = self._lookup(self._p2tp_freactant, idx_list)
+			res.update(self._lookup(self._p2tp_fcontext, idx_list))
+			res.update(self._lookup(self._p2tp_rcontext, idx_list))
+			res.update(self._lookup(self._p2tp_delcontext, idx_list))
+			return list(res)
 		elif type_vector == ['p','irr']:
 			return [x for x in self.getFlow(['p','t'],idx_list) if x in self.irr_ids]
+
 		elif type_vector == ['t','p']:
-			return self._get_mapped([self._t2p_product, self._t2p_syncontext], idx_list)
+			res = self._lookup(self._t2p_product, idx_list)
+			for t_id in idx_list:
+				if self.t.t2action.get(t_id) == 'Add' and t_id in self._t2p_syndel:
+					res.update(self._t2p_syndel[t_id])
+			return list(res)
 		elif type_vector == ['tp','p']:
-			return self._get_mapped([self._tp2p_reversereactant, self._tp2p_syncontext], idx_list)
+			res = self._lookup(self._tp2p_rreactant, idx_list)
+			res.update(self._lookup(self._tp2p_syncontext, idx_list))
+			return list(res)
 		elif type_vector == ['irr','p']:
 			return self.getFlow(['t','p'],idx_list)
 		else:
@@ -425,24 +465,48 @@ class allMaps:
 
 	def getFlux(self,type_vector,idx_list):
 		if type_vector == ['tp','p']:
-			return self._get_mapped([self._tp2p_forwardreactant, self._tp2p_reversereactant, self._tp2p_syncontext, self._tp2p_delcontext], idx_list)
+			res = self._lookup(self._tp2p_freactant, idx_list)
+			res.update(self._lookup(self._tp2p_rreactant, idx_list))
+			res.update(self._lookup(self._tp2p_syncontext, idx_list))
+			res.update(self._lookup(self._tp2p_delcontext, idx_list))
+			return list(res)
 		if type_vector == ['t','p']:
-			return self._get_mapped([self._t2p_reactant, self._t2p_product, self._t2p_syndelcontext], idx_list)
+			res = self._lookup(self._t2p_reactant, idx_list)
+			res.update(self._lookup(self._t2p_product, idx_list))
+			res.update(self._lookup(self._t2p_syndel, idx_list))
+			return list(res)
 		if type_vector == ['irr','p']:
 			return self.getFlux(['t','p'],idx_list)
 		
 		if type_vector == ['p','tp']:
-			return self._get_mapped([self._p2tp_forwardreactant, self._p2tp_reversereactant, self._p2tp_syncontext, self._p2tp_delcontext], idx_list)
+			res = self._lookup(self._p2tp_freactant, idx_list)
+			res.update(self._lookup(self._p2tp_rreactant, idx_list))
+			res.update(self._lookup(self._p2tp_syncontext, idx_list))
+			res.update(self._lookup(self._p2tp_delcontext, idx_list))
+			return list(res)
 		if type_vector == ['p','t']:
-			return self._get_mapped([self._p2t_reactant, self._p2t_product, self._p2t_syndelcontext], idx_list)
+			res = self._lookup(self._p2t_reactant, idx_list)
+			res.update(self._lookup(self._p2t_product, idx_list))
+			res.update(self._lookup(self._p2t_syndel, idx_list))
+			return list(res)
 		if type_vector == ['p','irr']:
 			return [x for x in self.getFlux(['p','t'],idx_list) if x in self.irr_ids]
-			
+
 	def getAll(self,type_vector,idx_list):
 		if type_vector == ['tp','p']:
-			return self._get_mapped([self._tp2p_forwardreactant, self._tp2p_reversereactant, self._tp2p_syncontext, self._tp2p_delcontext, self._tp2p_forwardcontext, self._tp2p_reversecontext], idx_list)
+			res = self._lookup(self._tp2p_freactant, idx_list)
+			res.update(self._lookup(self._tp2p_rreactant, idx_list))
+			res.update(self._lookup(self._tp2p_syncontext, idx_list))
+			res.update(self._lookup(self._tp2p_delcontext, idx_list))
+			res.update(self._lookup(self._tp2p_fcontext, idx_list))
+			res.update(self._lookup(self._tp2p_rcontext, idx_list))
+			return list(res)
 		if type_vector == ['t','p']:
-			return self._get_mapped([self._t2p_reactant, self._t2p_product, self._t2p_syndelcontext, self._t2p_context], idx_list)
+			res = self._lookup(self._t2p_reactant, idx_list)
+			res.update(self._lookup(self._t2p_product, idx_list))
+			res.update(self._lookup(self._t2p_syndel, idx_list))
+			res.update(self._lookup(self._t2p_context, idx_list))
+			return list(res)
 		if type_vector == ['irr','p']:
 			return self.getAll(['t','p'],idx_list)
 					
