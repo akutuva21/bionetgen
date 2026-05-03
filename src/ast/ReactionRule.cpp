@@ -1210,9 +1210,9 @@ void ReactionRule::initialize() {
 std::vector<ReactionRule::EmbeddingResult> ReactionRule::findEmbeddings(
     std::size_t patternIndex,
     const SpeciesList& speciesList) const {
-    std::unordered_set<std::size_t> allSpecies;
+    std::vector<std::size_t> allSpecies;
     for (std::size_t speciesIndex = 0; speciesIndex < speciesList.size(); ++speciesIndex) {
-        allSpecies.insert(speciesIndex);
+        allSpecies.push_back(speciesIndex);
     }
     return findEmbeddingsForSpecies(patternIndex, speciesList, allSpecies);
 }
@@ -1220,7 +1220,7 @@ std::vector<ReactionRule::EmbeddingResult> ReactionRule::findEmbeddings(
 std::vector<ReactionRule::EmbeddingResult> ReactionRule::findEmbeddingsForSpecies(
     std::size_t patternIndex,
     const SpeciesList& speciesList,
-    const std::unordered_set<std::size_t>& candidateSpecies,
+    const std::vector<std::size_t>& candidateSpecies,
     const Model* model) const {
     std::vector<EmbeddingResult> results;
     const auto& pattern = reactantPatterns_.at(patternIndex).getGraph();
@@ -1517,13 +1517,20 @@ std::size_t ReactionRule::expandRule(
         }
     }
 
-    std::unordered_set<std::size_t> newSpecies;
+    std::vector<std::size_t> newSpecies;
+
+    // Ensure the vector is sized appropriately
+    if (lastProcessedInIteration_.size() < speciesBoundary) {
+        lastProcessedInIteration_.resize(speciesBoundary, static_cast<std::size_t>(-1));
+    }
+
     for (std::size_t i = 0; i < std::min(speciesList.size(), speciesBoundary); ++i) {
-        const auto iter = lastProcessedInIteration_.find(i);
+        const bool hasIter = (i < lastProcessedInIteration_.size() && lastProcessedInIteration_[i] != static_cast<std::size_t>(-1));
+        const std::size_t lastIter = hasIter ? lastProcessedInIteration_[i] : 0;
+
         const bool notYetProcessed = !speciesList.get(i).rulesApplied();
-        const bool notProcessedByThisRuleInCurrentIteration =
-            (iter == lastProcessedInIteration_.end() || iter->second < currentIteration);
-        const bool neverProcessedByThisRule = (iter == lastProcessedInIteration_.end());
+        const bool notProcessedByThisRuleInCurrentIteration = (!hasIter || lastIter < currentIteration);
+        const bool neverProcessedByThisRule = !hasIter;
 
         // Unimolecular: only process species never seen by this rule before.
         // Using neverProcessedByThisRule (not just notProcessedInCurrentIteration)
@@ -1534,15 +1541,15 @@ std::size_t ReactionRule::expandRule(
         if (!isBimolecular) {
             // Unimolecular: process only never-before-seen species
             if (neverProcessedByThisRule && notYetProcessed) {
-                newSpecies.insert(i);
+                newSpecies.push_back(i);
             }
         } else {
             // Bimolecular: process new species or old species for cross-matching
             if (notYetProcessed && notProcessedByThisRuleInCurrentIteration) {
-                newSpecies.insert(i);
+                newSpecies.push_back(i);
             } else if (hasTrulyNewSpecies && speciesList.get(i).rulesApplied() &&
                        notProcessedByThisRuleInCurrentIteration) {
-                newSpecies.insert(i);
+                newSpecies.push_back(i);
             }
         }
     }
@@ -1550,7 +1557,7 @@ std::size_t ReactionRule::expandRule(
         std::cerr << "[DEBUG] Rule " << ruleName_ << " iter=" << currentIteration
                   << ": newSpecies={";
         for (auto idx : newSpecies) std::cerr << idx << ",";
-        std::cerr << "} trackedCount=" << lastProcessedInIteration_.size() << "\n";
+        std::cerr << "} trackedCapacity=" << lastProcessedInIteration_.size() << "\n";
     }
     if (newSpecies.empty()) {
         return 0;
@@ -1565,9 +1572,7 @@ std::size_t ReactionRule::expandRule(
                   << " cacheNeedsRebuild=" << cacheNeedsRebuild << "\n";
     }
 
-    // =============================================
     // Two-phase: update all caches, then enumerate
-    // =============================================
     // Phase 1: Find new embeddings for ALL patterns and update caches.
     // Phase 2: For each pattern with new matches, enumerate combinations
     //          with that pattern as trigger.
@@ -1577,10 +1582,10 @@ std::size_t ReactionRule::expandRule(
 
     // Phase 1: Update all pattern caches
     for (std::size_t patternIndex = nPatterns; patternIndex-- > 0;) {
-        std::unordered_set<std::size_t> searchSet;
+        std::vector<std::size_t> searchSet;
         if (cacheNeedsRebuild) {
             for (std::size_t i = 0; i < std::min(speciesList.size(), speciesBoundary); ++i) {
-                searchSet.insert(i);
+                searchSet.push_back(i);
             }
         } else {
             searchSet = newSpecies;
@@ -1597,12 +1602,14 @@ std::size_t ReactionRule::expandRule(
             // avoids re-enumerating already-counted combinations.
             std::stable_partition(newMatches.begin(), newMatches.end(),
                 [this](const EmbeddingResult& m) {
-                    return lastProcessedInIteration_.count(m.speciesIndex) > 0;
+                    return m.speciesIndex < lastProcessedInIteration_.size() &&
+                           lastProcessedInIteration_[m.speciesIndex] != static_cast<std::size_t>(-1);
                 });
 
             std::size_t oldCount = 0;
             for (const auto& m : newMatches) {
-                if (lastProcessedInIteration_.count(m.speciesIndex) > 0) {
+                if (m.speciesIndex < lastProcessedInIteration_.size() &&
+                    lastProcessedInIteration_[m.speciesIndex] != static_cast<std::size_t>(-1)) {
                     ++oldCount;
                 }
             }
@@ -1631,6 +1638,9 @@ std::size_t ReactionRule::expandRule(
         lastSpeciesListCapacity_ = speciesList.capacity();
         // Mark processed even if no matches
         for (std::size_t idx : newSpecies) {
+            if (idx >= lastProcessedInIteration_.size()) {
+                lastProcessedInIteration_.resize(idx + 1, static_cast<std::size_t>(-1));
+            }
             lastProcessedInIteration_[idx] = currentIteration;
         }
         return 0;
@@ -1650,6 +1660,9 @@ std::size_t ReactionRule::expandRule(
         lastSpeciesListCapacity_ = speciesList.capacity();
         // Mark processed even if not all patterns match
         for (std::size_t idx : newSpecies) {
+            if (idx >= lastProcessedInIteration_.size()) {
+                lastProcessedInIteration_.resize(idx + 1, static_cast<std::size_t>(-1));
+            }
             lastProcessedInIteration_[idx] = currentIteration;
         }
         return 0;
@@ -1712,6 +1725,9 @@ std::size_t ReactionRule::expandRule(
 
     // Mark these species as processed by this rule in this iteration
     for (std::size_t idx : newSpecies) {
+        if (idx >= lastProcessedInIteration_.size()) {
+            lastProcessedInIteration_.resize(idx + 1, static_cast<std::size_t>(-1));
+        }
         lastProcessedInIteration_[idx] = currentIteration;
     }
 
@@ -2123,14 +2139,32 @@ bool ReactionRule::buildReaction(
     // graph before splitting. Uses Perl's separated_by_volume logic for surface transport.
     // Also handles peer-level transport (e.g., @Cell1 <-> @Cell2 with no parent/child).
     if (!g_compartmentDimensions.empty()) {
+        auto endIt = g_compartmentDimensions.end();
+        std::string lastCompR;
+        std::string lastCompP;
+        std::unordered_map<std::string, int>::const_iterator lastDimRIt = endIt;
+        std::unordered_map<std::string, int>::const_iterator lastDimPIt = endIt;
+
         for (std::size_t pi = 0; pi < reactantPatterns_.size() && pi < productPatterns_.size(); ++pi) {
             const auto& compR = reactantPatterns_[pi].getCompartment();
             const auto& compP = (pi < productPatterns_.size()) ? productPatterns_[pi].getCompartment() : std::string();
             if (compR.empty() || compP.empty() || compR == compP) continue;
 
-            auto dimRIt = g_compartmentDimensions.find(compR);
-            auto dimPIt = g_compartmentDimensions.find(compP);
-            if (dimRIt == g_compartmentDimensions.end() || dimPIt == g_compartmentDimensions.end()) continue;
+            auto dimRIt = lastDimRIt;
+            if (lastCompR != compR) {
+                dimRIt = g_compartmentDimensions.find(compR);
+                lastCompR = compR;
+                lastDimRIt = dimRIt;
+            }
+
+            auto dimPIt = lastDimPIt;
+            if (lastCompP != compP) {
+                dimPIt = g_compartmentDimensions.find(compP);
+                lastCompP = compP;
+                lastDimPIt = dimPIt;
+            }
+
+            if (dimRIt == endIt || dimPIt == endIt) continue;
             if (dimRIt->second != dimPIt->second) continue; // must be same dimension
 
             // Build compartment mapping based on transport type
