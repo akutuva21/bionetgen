@@ -1,3 +1,0 @@
-## 2024-05-04 - [Optimize findEmbeddingsForSpecies by avoiding unordered_map]
-**Learning:** During profiling in `ReactionRule::findEmbeddingsForSpecies`, using `std::unordered_map` inside a hot inner loop for checking `patternMoleculeTypes` against `targetGraph` can be a significant performance bottleneck due to continuous allocation/deallocation overhead.
-**Action:** When filtering species for molecule types in a fast path loop, prefer direct iteration or counting over constructing `std::unordered_map`, especially if the graph sizes are relatively small. This avoids memory allocation overhead inside inner loops.
