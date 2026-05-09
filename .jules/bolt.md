@@ -1,7 +1,0 @@
-## 2024-05-24 - bpgMaps.py deepcopy performance issue
-**Learning:** Python's `copy.deepcopy()` can be a significant performance bottleneck when called in a hot loop on custom objects, as seen in `TraceStack` expansion in `parsers/BipartiteGraph/bpgMaps.py`.
-**Action:** Replace `copy.deepcopy()` with an explicit `.copy()` method on the class that manually copies only the necessary internal state (e.g., `list(self.trace)` and `set(self._set)`). This is far faster.
-
-## 2024-05-09 - [Performance] Fast explicit copy vs deepcopy in structures.py
-**Learning:** In the BioNetGen Python parsers (e.g., `parsers/BipartiteGraph/structures.py`, `parsers/ContactMap/structures.py`, and `parsers/utils/smallStructures.py`), the use of the generic `copy.deepcopy()` to clone AST elements (`Component`, `Molecule`, `Species`) during iteration or modification (`extend`, `append`, `update`) is extremely slow. Since these classes implement custom `.copy()` methods that explicitly allocate and copy only their attributes (and cascade to child explicitly), calling `element.copy()` directly bypasses the massive overhead of `copy.deepcopy` (which performs memoization, type checking, dispatching, and cycle detection). This speeds up species duplication up to ~5-10x.
-**Action:** Replace `deepcopy(element)` with `element.copy()` when dealing with AST elements in the Python parsers that implement their own `.copy()` routine.
