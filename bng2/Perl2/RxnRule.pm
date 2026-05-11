@@ -982,7 +982,6 @@ sub toStringSSC
 	    if ( $p == 1 ) {
 		    if ( exists $pattern2{$m} ) {
 		    	$curLabel = $pattern2{$m};
-		    	++$mol_index;   # TODO: missing increment here, is this correct now?  --Justin, 15dec2010
 		    }
 		    else {
 		    	$pattern2{$m} = $mol_index;
