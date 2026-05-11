@@ -820,8 +820,10 @@ sub inferSpeciesCompartment
 	my $err = '';  # return error (set string if species compartment is invalid)
 
 	# Gather molecule compartments
-	foreach my $mol ( @{ $sg->Molecules } )
+	my %mol_comp = (); # map of molecule index to its effective compartment
+	for my $imol ( 0 .. $#{ $sg->Molecules } )
 	{
+		my $mol = $sg->Molecules->[$imol];
 		my $comp = $mol->Compartment;
 
 		if ( !(defined $comp)  and  defined $sg->Compartment )
@@ -829,10 +831,37 @@ sub inferSpeciesCompartment
 			$comp = $sg->Compartment;
 		}
 
+		$mol_comp{$imol} = $comp;
+
 		next unless ( defined $comp );
 
 		if    ( $comp->SpatialDimensions == 2 ) { $surfaces{$comp} = $comp; }
 		elsif ( $comp->SpatialDimensions == 3 ) { $volumes{$comp}  = $comp; }
+	}
+
+	# Check bond validity (bonded molecules must be in the same or adjacent compartments)
+	if ( $sg->Edges )
+	{
+		foreach my $edge ( @{$sg->Edges} )
+		{
+			my ($p1, $p2) = split ' ', $edge;
+			next unless (defined $p2); # only check full bonds
+
+			my ($m1, $c1) = split '\.', $p1;
+			my ($m2, $c2) = split '\.', $p2;
+
+			my $comp1 = $mol_comp{$m1};
+			my $comp2 = $mol_comp{$m2};
+
+			if (defined $comp1 and defined $comp2)
+			{
+				unless ( $comp1 eq $comp2 or $comp1->adjacent($comp2) )
+				{
+					$err = sprintf "Molecule Compartments of %s define invalid Species Compartment (invalid bonds).", $sg->toString();
+					return ( undef, $err );
+				}
+			}
+		}
 	}
 
 	my $n_surfaces = scalar( keys %surfaces );
