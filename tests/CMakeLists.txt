@@ -61,7 +61,31 @@ target_include_directories(test_node_operator PRIVATE
 )
 target_link_libraries(test_node_operator PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_core)
 catch_discover_tests(test_node_operator)
-add_executable(test_netwriter test_evaluate_expression_string.cpp)
-target_include_directories(test_netwriter PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/parser ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/generated ${antlr4_runtime_SOURCE_DIR}/runtime/Cpp/runtime/src)
-target_link_libraries(test_netwriter PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_core antlr4_static)
-catch_discover_tests(test_netwriter)
+
+add_executable(test_model test_model.cpp)
+target_include_directories(test_model PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/ast
+)
+target_link_libraries(test_model PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast bng_parser bng_core antlr4_static)
+catch_discover_tests(test_model)
+
+add_executable(test_net_writer test_net_writer.cpp)
+target_include_directories(test_net_writer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser/generated
+    ${antlr4_runtime_SOURCE_DIR}/runtime/Cpp/runtime/src
+)
+target_link_libraries(test_net_writer PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_core antlr4_static)
+catch_discover_tests(test_net_writer)
+
+add_executable(test_evaluate_expression_string test_evaluate_expression_string.cpp)
+target_include_directories(test_evaluate_expression_string PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser/generated
+    ${antlr4_runtime_SOURCE_DIR}/runtime/Cpp/runtime/src
+)
+target_link_libraries(test_evaluate_expression_string PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_core antlr4_static)
+catch_discover_tests(test_evaluate_expression_string)
