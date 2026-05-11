@@ -68,7 +68,8 @@ double evaluateExpressionString(const std::string& expr,
                     }
                 }
             }
-            if (end > start) {
+            // Only consume if the function call spans the entire expression
+            if (end > start && end == trimmed.size() - 1) {
                 std::string inner = trimmed.substr(start, end - start);
                 return func(evaluateExpressionString(inner, resolve));
             }
@@ -154,16 +155,37 @@ double evaluateExpressionString(const std::string& expr,
         if (trimmed[i] == '(') ++parenDepth;
         else if (trimmed[i] == ')') --parenDepth;
         else if (parenDepth == 0 && i > 0) {
-            if (trimmed[i] == '+' || trimmed[i] == '-') {
-                lastAddSub = i;
-                lastAddSubOp = trimmed[i];
+            bool isBinary = false;
+            if (trimmed[i] == '+' || trimmed[i] == '-' || trimmed[i] == '*' || trimmed[i] == '/' || trimmed[i] == '^') {
+                // Ensure the operator is not part of scientific notation like "1e-5"
+                if ((trimmed[i] == '+' || trimmed[i] == '-') && (trimmed[i-1] == 'e' || trimmed[i-1] == 'E')) {
+                    isBinary = false;
+                } else {
+                    for (int j = i - 1; j >= 0; --j) {
+                        if (trimmed[j] != ' ' && trimmed[j] != '\t') {
+                            if (trimmed[j] != '+' && trimmed[j] != '-' &&
+                                trimmed[j] != '*' && trimmed[j] != '/' &&
+                                trimmed[j] != '^' && trimmed[j] != '(') {
+                                isBinary = true;
+                            }
+                            break;
+                        }
+                    }
+                }
             }
-            if (trimmed[i] == '*' || trimmed[i] == '/') {
-                lastMulDiv = i;
-                lastMulDivOp = trimmed[i];
-            }
-            if (trimmed[i] == '^') {
-                lastPower = i;
+
+            if (isBinary) {
+                if (trimmed[i] == '+' || trimmed[i] == '-') {
+                    lastAddSub = i;
+                    lastAddSubOp = trimmed[i];
+                }
+                if (trimmed[i] == '*' || trimmed[i] == '/') {
+                    lastMulDiv = i;
+                    lastMulDivOp = trimmed[i];
+                }
+                if (trimmed[i] == '^') {
+                    lastPower = i;
+                }
             }
         }
     }
@@ -1162,6 +1184,10 @@ void NetWriter::write(const std::filesystem::path& outputPath, ast::Model& model
     if (!out) {
         throw std::runtime_error("Could not open output file: " + outputPath.string());
     }
+    write(out, model, network);
+}
+
+void NetWriter::write(std::ostream& out, ast::Model& model, const engine::GeneratedNetwork& network) {
 
     out << "# Created by bng_cpp\n";
     if (!model.getVersion().empty()) {
