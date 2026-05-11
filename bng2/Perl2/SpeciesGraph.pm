@@ -809,7 +809,6 @@ sub inferSpeciesCompartment
 # if the Compartment cannot be inferred or is invalid.  Sets err=1 if Species
 # Compartment is invalid and err=0 otherwise.
 #
-# TODO: There is no check for bond validity here!  SHould be added in future.
 # TODO: What about verifying that all compartments are specified?
 {
 	my $sg = shift;
@@ -820,6 +819,7 @@ sub inferSpeciesCompartment
 	my $err = '';  # return error (set string if species compartment is invalid)
 
 	# Gather molecule compartments and component compartments
+	my %mol_comps = ();
 	foreach my $mol ( @{ $sg->Molecules } )
 	{
 		my $comp = $mol->Compartment;
@@ -828,6 +828,8 @@ sub inferSpeciesCompartment
 		{
 			$comp = $sg->Compartment;
 		}
+
+		$mol_comps{$mol} = $comp;
 
 		if ( defined $comp )
 		{
@@ -905,6 +907,34 @@ sub inferSpeciesCompartment
 	if ( defined $sg->Compartment and !( defined $inferred_comp ) )
 	{
 		$inferred_comp = $sg->Compartment;
+	}
+
+	# Check bond validity based on compartments
+	my %bonds = ();
+	foreach my $mol ( @{$sg->Molecules} )
+	{
+		foreach my $component ( @{$mol->Components} )
+		{
+			foreach my $edge_idx ( @{$component->Edges} )
+			{   push @{ $bonds{$edge_idx} }, $mol;   }
+		}
+	}
+
+	foreach my $bond ( values %bonds )
+	{
+		next if (@$bond != 2);
+
+		my $comp0 = $mol_comps{$bond->[0]};
+		my $comp1 = $mol_comps{$bond->[1]};
+
+		if (defined $comp0 and defined $comp1)
+		{
+			unless ( $comp0 == $comp1 or $comp0->adjacent($comp1) )
+			{
+				$err = sprintf "Molecule Compartments of %s define invalid Species Compartment.", $sg->toString();
+				return ( undef, $err );
+			}
+		}
 	}
 
 	# return inferred compartment
@@ -2276,6 +2306,7 @@ sub toSBMLMultiSpeciesType
     if($n_mol > 1){
         my %rreferenceClone = %{dclone(\%{$speciesIdHash_ref->{'References'}->{"ST".$id}->{'reverseReferences'}})};
         my %needed_compkeys;
+        my %needed_molkeys;
 
         my $mindex =0;
         foreach my $molecule (@{$sg->Molecules}){
@@ -2288,6 +2319,7 @@ sub toSBMLMultiSpeciesType
 
                 if (defined $component->State && $component->State ne '') {
                     $needed_compkeys{$compkey} = 1;
+                    $needed_molkeys{$molecule->Name} = 1;
                 }
 
                 $cindex += 1;
@@ -2309,21 +2341,25 @@ sub toSBMLMultiSpeciesType
                 my $compkey2 = $speciesIdHash_ref->{'References'}->{"ST".$id}->{'bng2multi'}->{$p2};
                 if ($compkey1) {
                     $needed_compkeys{$compkey1} = 1;
+                    $needed_molkeys{$sg->Molecules->[(split '\.', $p1)[0]]->Name} = 1;
                 }
                 if ($compkey2) {
                     $needed_compkeys{$compkey2} = 1;
+                    $needed_molkeys{$sg->Molecules->[(split '\.', $p2)[0]]->Name} = 1;
                 }
             }
         }
 
         $string .= $indent . "<multi:listOfSpeciesTypeComponentIndexes>\n";
         foreach my $molkey (keys %{$speciesIdHash_ref->{'References'}->{"ST".$id}{'Molecules'}}){
-            foreach my $entry (@{$speciesIdHash_ref->{'References'}->{"ST".$id}->{'Molecules'}->{$molkey}}){
-                #remove the cmp prefix to get the parent sbml_id.
-                @parentEntry = split(/_/,$entry);
-                my $parentEntryStr = join('_',@parentEntry[1..$#parentEntry]);
+            if ($needed_molkeys{$molkey}) {
+                foreach my $entry (@{$speciesIdHash_ref->{'References'}->{"ST".$id}->{'Molecules'}->{$molkey}}){
+                    #remove the cmp prefix to get the parent sbml_id.
+                    @parentEntry = split(/_/,$entry);
+                    my $parentEntryStr = join('_',@parentEntry[1..$#parentEntry]);
 
-                $string .= $indent2. sprintf("<multi:speciesTypeComponentIndex multi:id=\"%s\" multi:component=\"%s\"/>\n", $entry, $parentEntryStr);
+                    $string .= $indent2. sprintf("<multi:speciesTypeComponentIndex multi:id=\"%s\" multi:component=\"%s\"/>\n", $entry, $parentEntryStr);
+                }
             }
         }
 
@@ -2773,7 +2809,7 @@ sub depthFirstMoleculeSearch
 # Assume that molecules have already been sorted by molecule name and component state
 # using cmp_molecule and cmp_component and cmp_edge
 #
-# TODO: make sure isomorphicTo works correctly on patterns!
+# isomorphicTo now correctly compares patterns and their wildcards via updated Component::compare_local
 sub isomorphicTo
 {
 	my ($sg1, $sg2) = @_;
@@ -3591,10 +3627,36 @@ sub cmp_component
 	# Comparison of number of edges
 	# NOTE: the usual order of a and b are switched!!
 	#  so the components with more edges are before components with fewer edges
-	if ( $cmp = ( @{$b->Edges} <=> @{$a->Edges} ) )
-	{   return $cmp;   }
+
+    my $a_exp = 0;
+    my $a_plus = 0;
+    my $a_ques = 0;
+    my $a_star = 0;
+    for my $e (@{$a->Edges}) {
+        if ($e eq '+') { $a_plus++; }
+        elsif ($e eq '?') { $a_ques++; }
+        elsif ($e eq '*') { $a_star++; }
+        else { $a_exp++; }
+    }
+
+    my $b_exp = 0;
+    my $b_plus = 0;
+    my $b_ques = 0;
+    my $b_star = 0;
+    for my $e (@{$b->Edges}) {
+        if ($e eq '+') { $b_plus++; }
+        elsif ($e eq '?') { $b_ques++; }
+        elsif ($e eq '*') { $b_star++; }
+        else { $b_exp++; }
+    }
+
+    if ( $cmp = ($b_exp <=> $a_exp) ) { return $cmp; }
+    if ( $cmp = ($b_plus <=> $a_plus) ) { return $cmp; }
+    if ( $cmp = ($b_ques <=> $a_ques) ) { return $cmp; }
+    if ( $cmp = ($b_star <=> $a_star) ) { return $cmp; }
 
 	# Comparison of edges
+
 	#  for my $i (0..$#a_edges){
 	#    if ($cmp=($a_edges[$i] cmp $b_edges[$i])){
 	#      return($cmp);
