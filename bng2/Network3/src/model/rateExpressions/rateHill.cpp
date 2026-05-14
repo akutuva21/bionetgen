@@ -64,6 +64,7 @@ double RateHill::getRate(vector<double> X){
 	double rate = this->Vmax;
 	// Loop over reactant species
 	for (unsigned int i=0;i < X.size();i++){
+		// Error check
 		// Loop over stoichiometry
 		double X_mult = 1.0;
 		int stoich_i = std::abs(this->rStoich[i]);
@@ -138,6 +139,8 @@ double RateHill::get_dRate_dX(unsigned int which, vector<double> X){
 		double X0_h = pow(X0_mult,this->h);
 		dRate *= X0_h/( pow(this->Kh,this->h) + X0_h );
 		for (unsigned int i=1;i < X.size();i++){
+			// Error check
+			//
 			int stoich_i = std::abs(this->rStoich[i]);
 			if (i == which){
 				double dX_i = 0.0;
