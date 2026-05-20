@@ -6,6 +6,12 @@ Created on Fri May 31 16:56:13 2013
 """
 
 try:
+    import defusedxml.xmlrpc
+    defusedxml.xmlrpc.monkey_patch()
+except ImportError:
+    pass
+
+try:
     from SimpleXMLRPCServer import SimpleXMLRPCServer
 except ImportError:
     from xmlrpc.server import SimpleXMLRPCServer
