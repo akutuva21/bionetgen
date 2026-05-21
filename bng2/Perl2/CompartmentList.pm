@@ -40,7 +40,8 @@ sub copy
         push @{$clist_copy->Array}, $comp_copy;
         $clist_copy->Hash->{$comp_copy->Name} = $comp_copy;
     }
-    $clist_copy->Used($clist->Used);  # TODO: is this the best assumption?
+    # Inherit the 'Used' flag, as the copied list reflects the same model state regarding compartment usage.
+    $clist_copy->Used($clist->Used);
         
     # fix links to inside and outside neighbors
     foreach my $comp ( @{$clist_copy->Array} )
