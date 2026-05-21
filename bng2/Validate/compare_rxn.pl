@@ -230,13 +230,28 @@ sub rxn2text
     }
     else
     {   # try to evaluate safely
-        my $cpt = Safe->new;
-        $cpt->permit(qw(atan2 sin cos exp log sqrt pow entereval));
-        $cpt->share('tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh', 'pi');
-        my $eval_rate = $cpt->reval($rate);
+        my $test_rate = $rate;
+        my $allowed_funcs = join('|', qw(atan2 sin cos exp log sqrt pow tan asin acos atan sinh cosh tanh asinh acosh atanh pi));
 
-        if (defined $eval_rate)
-        {   $rate = $eval_rate;   }
+        # Strip allowed functions and constants
+        $test_rate =~ s/\b(?:$allowed_funcs)\b//g;
+
+        # Strip numbers (including scientific notation)
+        $test_rate =~ s/(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?//g;
+
+        # Strip allowed operators and whitespace
+        $test_rate =~ s/[\+\-\*\/\(\)\,\s\^]//g;
+
+        # Only evaluate if the string consists entirely of allowed components
+        if ($test_rate eq '') {
+            my $cpt = Safe->new;
+            $cpt->permit(qw(atan2 sin cos exp log sqrt pow));
+            $cpt->share('tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh', 'pi');
+            my $eval_rate = $cpt->reval($rate);
+
+            if (defined $eval_rate)
+            {   $rate = $eval_rate;   }
+        }
    
         if ( looks_like_number($rate) )
         {   $rate = sprintf( "%.8g", $rate);   }
