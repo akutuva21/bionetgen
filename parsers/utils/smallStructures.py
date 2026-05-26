@@ -99,9 +99,12 @@ class Species:
         return bondNumbers        
         
     def copy(self):
-        species = Species()
+        species = Species.__new__(Species)
+        species.molecules = list(self.molecules)
+        species.bondNumbers = []
+        species.bonds = []
         species.identifier = randint(0,1000000)
-        species.molecules = [molecule.copy() for molecule in self.molecules]
+        species.idx = self.idx
         return species
         
     def getMoleculeById(self,idx):
@@ -423,8 +426,12 @@ class Molecule:
         self.uniqueIdentifier = randint(0,100000)
         
     def copy(self):
-        molecule = Molecule(self.name,self.idx)
-        molecule.components = [element.copy() for element in self.components]
+        molecule = Molecule.__new__(Molecule)
+        molecule.name = self.name
+        molecule.idx = self.idx
+        molecule.compartment = self.compartment
+        molecule.uniqueIdentifier = randint(0,100000)
+        molecule.components = list(self.components)
         return molecule 
         
     def addChunk(self,chunk):
@@ -607,7 +614,11 @@ class Component:
         self.activeState = ''
         
     def copy(self):
-        component = Component(self.name,self.idx,list(self.bonds),list(self.states))
+        component = Component.__new__(Component)
+        component.name = self.name
+        component.idx = self.idx
+        component.bonds = self.bonds.copy()
+        component.states = self.states.copy()
         component.activeState = self.activeState
         return component
         
