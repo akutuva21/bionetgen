@@ -483,7 +483,7 @@ void OdeIntegrator::compile() {
                 }
             }
 
-            // --- Bug 2 fix: Check for user-defined function references ---
+            // --- Check for user-defined function references ---
             std::string matchedFuncName;
             if (!isFunctional) {
                 const std::string rawRL = rxn.getRateLaw();
@@ -522,7 +522,7 @@ void OdeIntegrator::compile() {
             }
         }
 
-        // Bug 2 fix: Also check for user-defined function references OUTSIDE the rateExpr block
+        // Also check for user-defined function references OUTSIDE the rateExpr block
         // This catches cases where rateExpr is nullopt but the rate law string references a function
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
@@ -894,7 +894,7 @@ void OdeIntegrator::derivs(double t, const double* y, double* dydt) const {
                 return groupValues_[it->second];
             }
 
-            // Check user-defined functions (Bug 2 fix) via O(1) functionMap_
+            // Check user-defined functions via O(1) functionMap_
             auto funcIt = functionMap_.find(name);
             if (funcIt != functionMap_.end()) {
                 return funcIt->second->evaluate(resolver, t);
