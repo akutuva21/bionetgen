@@ -192,35 +192,36 @@ class Species:
     def extend(self,species,update=True):
         if(len(self.molecules) == len(species.molecules)):
             for (selement,oelement) in zip(self.molecules,species.molecules):
-                selement_component_names = set(x.name for x in selement.components)
+                # ⚡ Bolt: Replace O(N^2) component lookup loops with O(1) dictionary lookups
+                selement_components = {x.name: x for x in selement.components}
                 for component in oelement.components:
-                    if component.name not in selement_component_names:
+                    if component.name not in selement_components:
                         selement.components.append(component)
-                        selement_component_names.add(component.name)
+                        selement_components[component.name] = component
                     else:
-                        for element in selement.components:
-                            if element.name == component.name:
-                                element.addStates(component.states,update)
-                                break
+                        selement_components[component.name].addStates(component.states,update)
                                 
         else:
-            self_molecule_names = set(x.name for x in self.molecules)
+            # ⚡ Bolt: Replace O(N^2) molecule lookup loops with O(1) dictionary lookups
+            self_molecules = {x.name: x for x in self.molecules}
             for element in species.molecules:
-                if element.name not in self_molecule_names:
-                    self.addMolecule(element.copy(),update)
-                    self_molecule_names.add(element.name)
+                if element.name not in self_molecules:
+                    new_mol = element.copy()
+                    self.addMolecule(new_mol,update)
+                    self_molecules[element.name] = new_mol
                 else:
-                    for molecule in self.molecules:
-                        if molecule.name == element.name:
-                            molecule_component_names = set(x.name for x in molecule.components)
-                            for component in element.components:
-                                if component.name not in molecule_component_names:
-                                    molecule.addComponent(component.copy(),update)
-                                    molecule_component_names.add(component.name)
-                                else:
-                                    comp = molecule.getComponent(component.name)
-                                    for state in component.states:
-                                        comp.addState(state,update)
+                    molecule = self_molecules[element.name]
+                    # ⚡ Bolt: Replace O(N^2) component lookup loops with O(1) dictionary lookups
+                    molecule_components = {x.name: x for x in molecule.components}
+                    for component in element.components:
+                        if component.name not in molecule_components:
+                            new_comp = component.copy()
+                            molecule.addComponent(new_comp,update)
+                            molecule_components[component.name] = new_comp
+                        else:
+                            comp = molecule_components[component.name]
+                            for state in component.states:
+                                comp.addState(state,update)
                     
     
     def updateBonds(self,bondNumbers):
