@@ -421,18 +421,6 @@ DeleteBond::transform ( Map & map )
     // delete bond node
     graph->delete_node( map.mapf(bond) );
 
-    //// delete old bond nodes, if any
-    //for ( node_iter = target_node1->edges_out_begin();  node_iter != target_node1->edges_out_end();  ++node_iter )
-    //{
-    //    if ( (*node_iter)->get_type() < BOND_NODE_TYPE )
-    //        graph.delete_node( *node_iter );
-    //}
-    //for ( node_iter = target_node2->edges_out_begin();  node_iter != target_node2->edges_out_end();  ++node_iter )
-    //{
-    //    if ( (*node_iter)->get_type() < BOND_NODE_TYPE )
-    //        graph.delete_node( *node_iter );
-    //}
-
     // create null bonds
     nullbond1 = new Node( BOND_NODE_TYPE );
     nullbond2 = new Node( BOND_NODE_TYPE );
