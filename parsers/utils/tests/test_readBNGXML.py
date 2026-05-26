@@ -28,6 +28,9 @@ class LxmlElementWrapper:
     def getchildren(self):
         return [LxmlElementWrapper(child) for child in self._et_element]
 
+    def __iter__(self):
+        return iter(self.getchildren())
+
 
 class TestParseComponent(unittest.TestCase):
 
@@ -49,7 +52,7 @@ class TestParseComponent(unittest.TestCase):
         # Now we can safely import the module
         global readBNGXML
         global st
-        import readBNGXML
+        import utils.readBNGXML as readBNGXML
         import smallStructures as st
 
     @classmethod

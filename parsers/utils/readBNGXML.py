@@ -29,19 +29,28 @@ def createMolecule(molecule, bonds):
     if molecule.get('compartment') not in ['',None]:
         mol.setCompartment(molecule.get('compartment'))
     nameDict[molecule.get('id')] = molecule.get('name')
-    listOfComponents =  molecule.find('.//{http://www.sbml.org/sbml/level3}ListOfComponents')
+    listOfComponents = molecule.find('{http://www.sbml.org/sbml/level3}ListOfComponents')
+    if listOfComponents is None:
+        listOfComponents = molecule.find('.//{http://www.sbml.org/sbml/level3}ListOfComponents')
     if listOfComponents != None:
+        findBond_func = findBond
+        component_append = mol.addComponent
         for element in listOfComponents:
-            component = st.Component(element.get('name'),element.get('id'))
-            nameDict[element.get('id')] = element.get('name')
-            if element.get('numberOfBonds') in ['+','?']:
-                component.addBond(element.get('numberOfBonds'))
-            elif element.get('numberOfBonds') != '0':
-                component.addBond(findBond(bonds, element.get('id')))
-            state = element.get('state') if element.get('state') != None else ''
+            elem_id = element.get('id')
+            elem_name = element.get('name')
+            elem_bonds = element.get('numberOfBonds')
+            elem_state = element.get('state')
+
+            component = st.Component(elem_name, elem_id)
+            nameDict[elem_id] = elem_name
+            if elem_bonds in ['+','?']:
+                component.addBond(elem_bonds)
+            elif elem_bonds != '0':
+                component.addBond(findBond_func(bonds, elem_id))
+            state = elem_state if elem_state != None else ''
             component.states.append(state)
             component.activeState = state
-            mol.addComponent(component)
+            component_append(component)
     return mol, nameDict
     
 
@@ -50,8 +59,12 @@ def createSpecies(pattern):
     tmpDict = {}
     species = st.Species()
     species.idx = pattern.get('id')
-    mol = pattern.find('.//{http://www.sbml.org/sbml/level3}ListOfMolecules')
-    bonds = pattern.find('.//{http://www.sbml.org/sbml/level3}ListOfBonds')
+    mol = pattern.find('{http://www.sbml.org/sbml/level3}ListOfMolecules')
+    if mol is None:
+        mol = pattern.find('.//{http://www.sbml.org/sbml/level3}ListOfMolecules')
+    bonds = pattern.find('{http://www.sbml.org/sbml/level3}ListOfBonds')
+    if bonds is None:
+        bonds = pattern.find('.//{http://www.sbml.org/sbml/level3}ListOfBonds')
 
     bond_map = {}
     if bonds is not None:
@@ -78,11 +91,21 @@ def parseRule(rule,parameterDict):
     Returns: a list of the reactants and products used, followed by the mapping
     between the two and the list of operations that were performed
     '''
-    rp = rule.find('.//{http://www.sbml.org/sbml/level3}ListOfReactantPatterns')
-    pp = rule.find('.//{http://www.sbml.org/sbml/level3}ListOfProductPatterns')
-    mp = rule.find('.//{http://www.sbml.org/sbml/level3}Map')
-    op = rule.find('.//{http://www.sbml.org/sbml/level3}ListOfOperations')
-    rt = rule.find('.//{http://www.sbml.org/sbml/level3}RateLaw')
+    rp = rule.find('{http://www.sbml.org/sbml/level3}ListOfReactantPatterns')
+    if rp is None:
+        rp = rule.find('.//{http://www.sbml.org/sbml/level3}ListOfReactantPatterns')
+    pp = rule.find('{http://www.sbml.org/sbml/level3}ListOfProductPatterns')
+    if pp is None:
+        pp = rule.find('.//{http://www.sbml.org/sbml/level3}ListOfProductPatterns')
+    mp = rule.find('{http://www.sbml.org/sbml/level3}Map')
+    if mp is None:
+        mp = rule.find('.//{http://www.sbml.org/sbml/level3}Map')
+    op = rule.find('{http://www.sbml.org/sbml/level3}ListOfOperations')
+    if op is None:
+        op = rule.find('.//{http://www.sbml.org/sbml/level3}ListOfOperations')
+    rt = rule.find('{http://www.sbml.org/sbml/level3}RateLaw')
+    if rt is None:
+        rt = rule.find('.//{http://www.sbml.org/sbml/level3}RateLaw')
     nameDict = {}
     reactants = []
     products = []
@@ -99,33 +122,43 @@ def parseRule(rule,parameterDict):
         ml = st.Molecule('0','')
         sp.addMolecule(ml)
         products.append(sp)
-    for pattern in rp:
-        elm, tmpDict = createSpecies(pattern)
-        reactants.append(elm)
-        nameDict.update(tmpDict)
-    for pattern in pp:
-        elm, tmpDict = createSpecies(pattern)
-        products.append(elm)
-        nameDict.update(tmpDict)
-    for operation in op:
-        action = st.Action()
-        tag = operation.tag
-        tag = tag.replace('{http://www.sbml.org/sbml/level3}','')
-        if operation.get('site1') != None:
-            action.setAction(tag, operation.get('site1'), operation.get('site2'))
+    if rp is not None:
+        for pattern in rp:
+            elm, tmpDict = createSpecies(pattern)
+            reactants.append(elm)
+            nameDict.update(tmpDict)
+    if pp is not None:
+        for pattern in pp:
+            elm, tmpDict = createSpecies(pattern)
+            products.append(elm)
+            nameDict.update(tmpDict)
+    if op is not None:
+        for operation in op:
+            action = st.Action()
+            tag = operation.tag
+            tag = tag.replace('{http://www.sbml.org/sbml/level3}','')
+            if operation.get('site1') != None:
+                action.setAction(tag, operation.get('site1'), operation.get('site2'))
+            else:
+                action.setAction(tag, operation.get('site'), None)
+            actions.append(action)
+    if mp is not None:
+        for mapping in mp:
+            tmpMap = (mapping.get('sourceID'), mapping.get('targetID'))
+            mappings.append(tmpMap)
+
+    if rt is not None:
+        rateConstants = rt.find('{http://www.sbml.org/sbml/level3}ListOfRateConstants')
+        if rateConstants is None:
+            rateConstants = rt.find('.//{http://www.sbml.org/sbml/level3}ListOfRateConstants')
+        if rateConstants == None:
+            rateConstants = rt.get('name')
         else:
-            action.setAction(tag, operation.get('site'), None)
-        actions.append(action)
-    for mapping in mp:
-        tmpMap = (mapping.get('sourceID'), mapping.get('targetID'))
-        mappings.append(tmpMap)
-    rateConstants = rt.find('.//{http://www.sbml.org/sbml/level3}ListOfRateConstants')
-    if rateConstants == None:
-        rateConstants = rt.get('name')
+            for constant in rateConstants:
+                tmp = constant.get('value')
+            rateConstants = tmp
     else:
-        for constant in rateConstants:
-            tmp = constant.get('value')
-        rateConstants = tmp
+        rateConstants = None
     rateConstantsValue = parameterDict[rateConstants] if rateConstants in parameterDict else rateConstants
     #rule = st.Rule()   
     label = rule.get('name')
@@ -147,10 +180,11 @@ def parseMolecules(molecules):
     '''
 
     mol = st.Molecule(molecules.get('id'),molecules.get('id'))
-    components = \
-      molecules.find('.//{http://www.sbml.org/sbml/level3}ListOfComponentTypes')
+    components = molecules.find('{http://www.sbml.org/sbml/level3}ListOfComponentTypes')
+    if components is None:
+        components = molecules.find('.//{http://www.sbml.org/sbml/level3}ListOfComponentTypes')
     if components != None:
-        for component in components.getchildren():
+        for component in components:
             comp = parseComponent(component)
             mol.addComponent(comp)
     return mol       
@@ -160,9 +194,11 @@ def parseComponent(component):
     parses  a bngxml molecule types section
     '''
     comp = st.Component(component.get('id'),component.get('id'))
-    states = component.find('.//{http://www.sbml.org/sbml/level3}ListOfAllowedStates')
+    states = component.find('{http://www.sbml.org/sbml/level3}ListOfAllowedStates')
+    if states is None:
+        states = component.find('.//{http://www.sbml.org/sbml/level3}ListOfAllowedStates')
     if states != None:
-        for state in states.getchildren():
+        for state in states:
             comp.addState(state.get('id'))
     return comp
     
