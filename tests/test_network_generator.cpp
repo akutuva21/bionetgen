@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <cstdlib>
 #include "../src/engine/NetworkGenerator.hpp"
 #include "../src/ast/Model.hpp"
@@ -206,5 +207,32 @@ TEST_CASE("parseOverwrite behaves correctly", "[NetworkGenerator]") {
         action.arguments["overwrite"] = "no";
         model.addAction(action);
         REQUIRE(parseOverwrite(model) == false);
+    }
+}
+
+TEST_CASE("NetworkGenerator::generate behaves correctly", "[NetworkGenerator]") {
+    bng::ast::Model model;
+    bng::engine::NetworkGenerator generator(model);
+
+    SECTION("writes to file when path is provided") {
+        // We do not mock or execute BNG2.pl here as we are testing the native generate logic
+        // which now produces the output directly via io::NetWriter::write instead of via std::system.
+        auto tempDir = std::filesystem::temp_directory_path();
+        auto bnglPath = tempDir / "test_model_for_generate.bngl";
+        auto expectedNetPath = tempDir / "test_model_for_generate.net";
+
+        if (std::filesystem::exists(expectedNetPath)) {
+            std::filesystem::remove(expectedNetPath);
+        }
+
+        generator.generate(bnglPath);
+
+        REQUIRE(std::filesystem::exists(expectedNetPath));
+
+        std::filesystem::remove(expectedNetPath);
+    }
+
+    SECTION("does not write to file when path is empty") {
+        REQUIRE_NOTHROW(generator.generate(std::filesystem::path("")));
     }
 }
