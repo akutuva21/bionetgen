@@ -146,3 +146,11 @@ target_link_libraries(test_ode_integrator PRIVATE
     antlr4_static
 )
 catch_discover_tests(test_ode_integrator)
+
+add_executable(test_MoleculeType ast/test_MoleculeType.cpp)
+target_include_directories(test_MoleculeType PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/ast
+)
+target_link_libraries(test_MoleculeType PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast)
+catch_discover_tests(test_MoleculeType)
