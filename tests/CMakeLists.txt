@@ -41,6 +41,25 @@ target_link_libraries(test_pla_simulator PRIVATE
 )
 catch_discover_tests(test_pla_simulator)
 
+add_executable(test_psa_simulator test_psa_simulator.cpp)
+target_include_directories(test_psa_simulator PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser/generated
+    ${antlr4_runtime_SOURCE_DIR}/runtime/Cpp/runtime/src
+    ${sundials_SOURCE_DIR}/include
+    ${sundials_BINARY_DIR}/include
+)
+target_link_libraries(test_psa_simulator PRIVATE
+    Catch2::Catch2WithMain
+    Catch2::Catch2
+    bng_engine
+    bng_ast
+    bng_core
+    antlr4_static
+)
+catch_discover_tests(test_psa_simulator)
+
 add_executable(test_hybrid_model_generator test_hybrid_model_generator.cpp)
 target_link_libraries(test_hybrid_model_generator PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast)
 add_test(NAME test_hybrid_model_generator COMMAND test_hybrid_model_generator)
@@ -69,6 +88,17 @@ target_include_directories(test_model PRIVATE
 )
 target_link_libraries(test_model PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast bng_parser bng_core antlr4_static)
 catch_discover_tests(test_model)
+
+add_executable(test_python_export_writer test_python_export_writer.cpp)
+
+target_include_directories(test_python_export_writer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser/generated
+    ${antlr4_runtime_SOURCE_DIR}/runtime/Cpp/runtime/src
+)
+target_link_libraries(test_python_export_writer PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_core antlr4_static)
+catch_discover_tests(test_python_export_writer)
 
 add_executable(test_net_writer test_net_writer.cpp)
 target_include_directories(test_net_writer PRIVATE
@@ -120,13 +150,36 @@ target_link_libraries(test_action_dispatch PRIVATE
 catch_discover_tests(test_action_dispatch)
 
 add_executable(test_GraphTypeRegistry ast/test_GraphTypeRegistry.cpp)
+
+add_executable(test_Compartment ast/test_Compartment.cpp)
+target_include_directories(test_Compartment PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/ast
+)
+target_link_libraries(test_Compartment PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast)
+catch_discover_tests(test_Compartment)
 target_include_directories(test_GraphTypeRegistry PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/ast
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
 )
 target_link_libraries(test_GraphTypeRegistry PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast bng_core)
+add_executable(test_Species ast/test_Species.cpp)
+target_include_directories(test_Species PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+target_link_libraries(test_Species PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast bng_core)
+catch_discover_tests(test_Species)
+
 catch_discover_tests(test_GraphTypeRegistry)
+
+add_executable(test_Observable ast/test_Observable.cpp)
+target_include_directories(test_Observable PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/ast
+)
+target_link_libraries(test_Observable PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast)
+catch_discover_tests(test_Observable)
 
 add_executable(test_ode_integrator test_ode_integrator.cpp)
 target_include_directories(test_ode_integrator PRIVATE
@@ -156,3 +209,15 @@ target_include_directories(test_latex_writer PRIVATE
 )
 target_link_libraries(test_latex_writer PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_core antlr4_static)
 catch_discover_tests(test_latex_writer)
+
+add_executable(benchmark benchmark.cpp)
+target_include_directories(benchmark PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser/generated
+    ${antlr4_runtime_SOURCE_DIR}/runtime/Cpp/runtime/src
+    ${sundials_SOURCE_DIR}/include
+    ${sundials_BINARY_DIR}/include
+)
+target_link_libraries(benchmark PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_parser bng_core antlr4_static)
+catch_discover_tests(benchmark)
