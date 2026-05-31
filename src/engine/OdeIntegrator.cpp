@@ -126,6 +126,9 @@ OdeIntegrator::OdeIntegrator(const ast::Model& model, const GeneratedNetwork& ne
     compile();
 }
 
+OdeIntegrator::~OdeIntegrator() {
+}
+
 void OdeIntegrator::compile() {
     nSpecies_ = network_.species.size();
     fixedSpecies_.resize(nSpecies_, false);
@@ -317,7 +320,6 @@ void OdeIntegrator::compile() {
         std::string rateStr = rateStrBuilder.str();
         const std::string rawRateLaw = rxn.getRateLaw();
 
-        // Detect Sat/MM/Hill rate law types
         // Format in .net: "Sat kcat Km" or "MM kcat Km" or "Hill Vmax Kh n"
         bool isSatMMHill = false;
         bool isMM = false;  // True when rate law is MM (Michaelis-Menten), not Sat
@@ -483,7 +485,6 @@ void OdeIntegrator::compile() {
                 }
             }
 
-            // Check for user-defined function references
             std::string matchedFuncName;
             if (!isFunctional) {
                 const std::string rawRL = rxn.getRateLaw();
@@ -522,8 +523,6 @@ void OdeIntegrator::compile() {
             }
         }
 
-        // Also check for user-defined function references OUTSIDE the rateExpr block
-        // This catches cases where rateExpr is nullopt but the rate law string references a function
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
             std::string rlLow = rawRL;
