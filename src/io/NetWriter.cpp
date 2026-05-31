@@ -625,6 +625,12 @@ std::optional<double> NetWriter::computeUnitConversionFactor(
 std::unordered_map<std::string, DerivedRateInfo> NetWriter::buildDerivedRateParams(
     const ast::Model& model,
     const engine::GeneratedNetwork& network) {
+    // Cache for parsed observable patterns to avoid re-parsing and re-building graphs
+    std::unordered_map<std::string, BNGcore::PatternGraph> parsedObservableCache;
+
+
+
+
     std::unordered_map<std::string, DerivedRateInfo> derived;
     int rateLawCounter = 1;
 
@@ -787,10 +793,22 @@ std::unordered_map<std::string, DerivedRateInfo> NetWriter::buildDerivedRatePara
                             // Substitute this observable in the function body
                             for (const auto& farg : formalArgs) {
                                 std::string pat = obsName + "(" + farg + ")";
-                                std::string::size_type pos = 0;
-                                while ((pos = funcBody.find(pat, pos)) != std::string::npos) {
-                                    funcBody.replace(pos, pat.length(), countStr);
-                                    pos += countStr.length();
+                                {
+                                    std::string::size_type pos = 0;
+                                    std::string::size_type next_pos = funcBody.find(pat, pos);
+                                    if (next_pos != std::string::npos) {
+                                        std::string result;
+                                        result.reserve(funcBody.length());
+                                        std::string rep = countStr; // evaluate once
+                                        while (next_pos != std::string::npos) {
+                                            result.append(funcBody, pos, next_pos - pos);
+                                            result.append(rep);
+                                            pos = next_pos + pat.length();
+                                            next_pos = funcBody.find(pat, pos);
+                                        }
+                                        result.append(funcBody, pos, funcBody.length() - pos);
+                                        funcBody = std::move(result);
+                                    }
                                 }
                             }
                         }
@@ -803,8 +821,11 @@ std::unordered_map<std::string, DerivedRateInfo> NetWriter::buildDerivedRatePara
                                 for (const auto& patternText : obs.getPatterns()) {
                                     const auto& speciesGraph = network.species.get(speciesIdx).getSpeciesGraph().getGraph();
                                     if (speciesGraph.empty()) continue;
-                                    auto pattern = parseObservablePattern(patternText, const_cast<ast::Model&>(model));
-                                    BNGcore::UllmannSGIso matcher(pattern, speciesGraph);
+                                    auto cacheIt = parsedObservableCache.find(patternText);
+                                    if (cacheIt == parsedObservableCache.end()) {
+                                        cacheIt = parsedObservableCache.emplace(patternText, parseObservablePattern(patternText, const_cast<ast::Model&>(model))).first;
+                                    }
+                                    BNGcore::UllmannSGIso matcher(cacheIt->second, speciesGraph);
                                     BNGcore::List<BNGcore::Map> maps;
                                     obsCount += matcher.find_maps(maps);
                                 }
@@ -812,10 +833,22 @@ std::unordered_map<std::string, DerivedRateInfo> NetWriter::buildDerivedRatePara
                             }
                             for (const auto& farg : formalArgs) {
                                 std::string pat = localObsName + "(" + farg + ")";
-                                std::string::size_type pos = 0;
-                                while ((pos = funcBody.find(pat, pos)) != std::string::npos) {
-                                    funcBody.replace(pos, pat.length(), std::to_string(obsCount));
-                                    pos += std::to_string(obsCount).length();
+                                {
+                                    std::string::size_type pos = 0;
+                                    std::string::size_type next_pos = funcBody.find(pat, pos);
+                                    if (next_pos != std::string::npos) {
+                                        std::string result;
+                                        result.reserve(funcBody.length());
+                                        std::string rep = std::to_string(obsCount); // evaluate once
+                                        while (next_pos != std::string::npos) {
+                                            result.append(funcBody, pos, next_pos - pos);
+                                            result.append(rep);
+                                            pos = next_pos + pat.length();
+                                            next_pos = funcBody.find(pat, pos);
+                                        }
+                                        result.append(funcBody, pos, funcBody.length() - pos);
+                                        funcBody = std::move(result);
+                                    }
                                 }
                             }
                         }
@@ -925,10 +958,22 @@ std::unordered_map<std::string, DerivedRateInfo> NetWriter::buildDerivedRatePara
                                     std::string countStr = token.substr(eqPos + 1);
                                     for (const auto& farg : revFormalArgs) {
                                         std::string pat = obsName + "(" + farg + ")";
-                                        std::string::size_type pos = 0;
-                                        while ((pos = funcBody.find(pat, pos)) != std::string::npos) {
-                                            funcBody.replace(pos, pat.length(), countStr);
-                                            pos += countStr.length();
+                                        {
+                                            std::string::size_type pos = 0;
+                                            std::string::size_type next_pos = funcBody.find(pat, pos);
+                                            if (next_pos != std::string::npos) {
+                                                std::string result;
+                                                result.reserve(funcBody.length());
+                                                std::string rep = countStr; // evaluate once
+                                                while (next_pos != std::string::npos) {
+                                                    result.append(funcBody, pos, next_pos - pos);
+                                                    result.append(rep);
+                                                    pos = next_pos + pat.length();
+                                                    next_pos = funcBody.find(pat, pos);
+                                                }
+                                                result.append(funcBody, pos, funcBody.length() - pos);
+                                                funcBody = std::move(result);
+                                            }
                                         }
                                     }
                                 }
@@ -940,8 +985,11 @@ std::unordered_map<std::string, DerivedRateInfo> NetWriter::buildDerivedRatePara
                                         for (const auto& patternText : obs.getPatterns()) {
                                             const auto& speciesGraph = network.species.get(speciesIdx).getSpeciesGraph().getGraph();
                                             if (speciesGraph.empty()) continue;
-                                            auto pattern = parseObservablePattern(patternText, const_cast<ast::Model&>(model));
-                                            BNGcore::UllmannSGIso matcher(pattern, speciesGraph);
+                                            auto cacheIt = parsedObservableCache.find(patternText);
+                                            if (cacheIt == parsedObservableCache.end()) {
+                                                cacheIt = parsedObservableCache.emplace(patternText, parseObservablePattern(patternText, const_cast<ast::Model&>(model))).first;
+                                            }
+                                            BNGcore::UllmannSGIso matcher(cacheIt->second, speciesGraph);
                                             BNGcore::List<BNGcore::Map> maps;
                                             obsCount += matcher.find_maps(maps);
                                         }
@@ -949,10 +997,22 @@ std::unordered_map<std::string, DerivedRateInfo> NetWriter::buildDerivedRatePara
                                     }
                                     for (const auto& farg : revFormalArgs) {
                                         std::string pat = obsName + "(" + farg + ")";
-                                        std::string::size_type pos = 0;
-                                        while ((pos = funcBody.find(pat, pos)) != std::string::npos) {
-                                            funcBody.replace(pos, pat.length(), std::to_string(obsCount));
-                                            pos += std::to_string(obsCount).length();
+                                        {
+                                            std::string::size_type pos = 0;
+                                            std::string::size_type next_pos = funcBody.find(pat, pos);
+                                            if (next_pos != std::string::npos) {
+                                                std::string result;
+                                                result.reserve(funcBody.length());
+                                                std::string rep = std::to_string(obsCount); // evaluate once
+                                                while (next_pos != std::string::npos) {
+                                                    result.append(funcBody, pos, next_pos - pos);
+                                                    result.append(rep);
+                                                    pos = next_pos + pat.length();
+                                                    next_pos = funcBody.find(pat, pos);
+                                                }
+                                                result.append(funcBody, pos, funcBody.length() - pos);
+                                                funcBody = std::move(result);
+                                            }
                                         }
                                     }
                                 }
@@ -1001,9 +1061,22 @@ std::unordered_map<std::string, DerivedRateInfo> NetWriter::buildDerivedRatePara
                     for (const auto& obs : model.getObservables()) {
                         for (const auto& farg : fArgs) {
                             std::string pat = obs.getName() + "(" + farg + ")";
-                            std::string::size_type pos = 0;
-                            while ((pos = funcBody.find(pat, pos)) != std::string::npos) {
-                                funcBody.replace(pos, pat.length(), "0");
+                            {
+                                std::string::size_type pos = 0;
+                                std::string::size_type next_pos = funcBody.find(pat, pos);
+                                if (next_pos != std::string::npos) {
+                                    std::string result;
+                                    result.reserve(funcBody.length());
+                                    std::string rep = "0"; // evaluate once
+                                    while (next_pos != std::string::npos) {
+                                        result.append(funcBody, pos, next_pos - pos);
+                                        result.append(rep);
+                                        pos = next_pos + pat.length();
+                                        next_pos = funcBody.find(pat, pos);
+                                    }
+                                    result.append(funcBody, pos, funcBody.length() - pos);
+                                    funcBody = std::move(result);
+                                }
                             }
                         }
                     }
@@ -1188,6 +1261,12 @@ void NetWriter::write(const std::filesystem::path& outputPath, ast::Model& model
 }
 
 void NetWriter::write(std::ostream& out, ast::Model& model, const engine::GeneratedNetwork& network) {
+    // Cache for parsed observable patterns to avoid re-parsing and re-building graphs
+    std::unordered_map<std::string, std::pair<BNGcore::PatternGraph, std::string>> parsedObservableCache;
+
+
+
+
 
     out << "# Created by bng_cpp\n";
     if (!model.getVersion().empty()) {
@@ -1595,7 +1674,12 @@ void NetWriter::write(std::ostream& out, ast::Model& model, const engine::Genera
         for (std::size_t speciesIndex = 0; speciesIndex < network.species.size(); ++speciesIndex) {
             std::size_t weight = 0;
             for (const auto& patternText : observable.getPatterns()) {
-                auto [pattern, patternCompartment] = parseObservablePatternWithCompartment(patternText, model);
+                auto cacheIt = parsedObservableCache.find(patternText);
+                if (cacheIt == parsedObservableCache.end()) {
+                    cacheIt = parsedObservableCache.emplace(patternText, parseObservablePatternWithCompartment(patternText, model)).first;
+                }
+                auto& pattern = cacheIt->second.first;
+                auto& patternCompartment = cacheIt->second.second;
 
                 // Compartment matching strategy:
                 // 1. Molecule-level compartment (e.g., SARM()@Cyt) -- compartment is
