@@ -1,11 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
-#include "Species.hpp"
-#include "SpeciesGraph.hpp"
+#include "ast/Species.hpp"
+#include "ast/SpeciesGraph.hpp"
 #include "core/BNGcore.hpp"
 
 using namespace bng::ast;
 
-TEST_CASE("Species functionality", "[ast]") {
+TEST_CASE("Species functionality", "[ast][Species]") {
     BNGcore::PatternGraph pg;
     SpeciesGraph sg(pg);
 
@@ -25,7 +25,6 @@ TEST_CASE("Species functionality", "[ast]") {
         REQUIRE(s.getAmount() == 10.5);
         REQUIRE(s.isConstant() == true);
         REQUIRE(s.getCompartment() == "cytosol");
-        // Verify compartment is propagated to SpeciesGraph since it was empty
         REQUIRE(s.getSpeciesGraph().getCompartment() == "cytosol");
     }
 
@@ -34,7 +33,6 @@ TEST_CASE("Species functionality", "[ast]") {
         Species s(sg_comp, 5.0, false, "new_comp");
 
         REQUIRE(s.getCompartment() == "new_comp");
-        // Compartment is not propagated if SpeciesGraph already has one
         REQUIRE(s.getSpeciesGraph().getCompartment() == "existing");
     }
 
@@ -57,11 +55,9 @@ TEST_CASE("Species functionality", "[ast]") {
     SECTION("SpeciesGraph references") {
         Species s(sg);
 
-        // Const version
         const Species& cs = s;
         REQUIRE(cs.getSpeciesGraph().getCompartment().empty());
 
-        // Non-const version
         s.getSpeciesGraph().setCompartment("membrane");
         REQUIRE(cs.getSpeciesGraph().getCompartment() == "membrane");
     }
