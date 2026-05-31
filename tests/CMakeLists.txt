@@ -139,12 +139,27 @@ target_link_libraries(test_action_dispatch PRIVATE
 catch_discover_tests(test_action_dispatch)
 
 add_executable(test_GraphTypeRegistry ast/test_GraphTypeRegistry.cpp)
+
+add_executable(test_Compartment ast/test_Compartment.cpp)
+target_include_directories(test_Compartment PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/ast
+)
+target_link_libraries(test_Compartment PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast)
+catch_discover_tests(test_Compartment)
 target_include_directories(test_GraphTypeRegistry PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/ast
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/core
 )
 target_link_libraries(test_GraphTypeRegistry PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast bng_core)
+add_executable(test_Species ast/test_Species.cpp)
+target_include_directories(test_Species PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+target_link_libraries(test_Species PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast bng_core)
+catch_discover_tests(test_Species)
+
 catch_discover_tests(test_GraphTypeRegistry)
 
 add_executable(test_ode_integrator test_ode_integrator.cpp)
