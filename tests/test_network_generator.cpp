@@ -215,8 +215,6 @@ TEST_CASE("NetworkGenerator::generate behaves correctly", "[NetworkGenerator]") 
     bng::engine::NetworkGenerator generator(model);
 
     SECTION("writes to file when path is provided") {
-        // We do not mock or execute BNG2.pl here as we are testing the native generate logic
-        // which now produces the output directly via io::NetWriter::write instead of via std::system.
         auto tempDir = std::filesystem::temp_directory_path();
         auto bnglPath = tempDir / "test_model_for_generate.bngl";
         auto expectedNetPath = tempDir / "test_model_for_generate.net";
@@ -234,5 +232,34 @@ TEST_CASE("NetworkGenerator::generate behaves correctly", "[NetworkGenerator]") 
 
     SECTION("does not write to file when path is empty") {
         REQUIRE_NOTHROW(generator.generate(std::filesystem::path("")));
+    }
+}
+
+TEST_CASE("generateNative drives network generation", "[NetworkGenerator]") {
+    Model model;
+
+    model.addMoleculeType(MoleculeType("A", {}));
+    model.addMoleculeType(MoleculeType("B", {}));
+
+    SpeciesGraph seedGraph = makeSpeciesGraph("A()", model);
+    model.addSeedSpecies(SeedSpecies(seedGraph.getGraph().get_raw_string(), Expression::number(100.0), false, "", makeSpeciesGraph("A()", model).getGraph()));
+
+    SECTION("Rule expansion with convergence") {
+        std::vector<SpeciesGraph> reactantPatterns;
+        reactantPatterns.push_back(makeSpeciesGraph("A()", model));
+
+        std::vector<SpeciesGraph> productPatterns;
+        productPatterns.push_back(makeSpeciesGraph("B()", model));
+
+        ReactionRule rule("R1", "A() -> B()", {"A()"}, {"B()"}, {Expression::number(1.0)}, {}, false, std::move(reactantPatterns), std::move(productPatterns));
+        rule.initialize();
+        model.addReactionRule(std::move(rule));
+
+        NetworkGenerator generator(model);
+
+        auto network = generator.generateNative(5);
+
+        REQUIRE(network.species.size() == 2);
+        REQUIRE(network.reactions.size() == 1);
     }
 }
