@@ -270,3 +270,11 @@ target_include_directories(benchmark PRIVATE
 )
 target_link_libraries(benchmark PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_parser bng_core antlr4_static)
 catch_discover_tests(benchmark)
+
+add_executable(test_ssc_writer test_ssc_writer.cpp)
+target_include_directories(test_ssc_writer PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}/../antlr4_generated/src
+)
+target_link_libraries(test_ssc_writer PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_core antlr4_static)
+catch_discover_tests(test_ssc_writer)
