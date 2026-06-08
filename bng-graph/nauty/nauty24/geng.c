@@ -1,5 +1,3 @@
-/* TODO:  insert new timings
- *        add chordal graphs */
 
 /* geng.c  version 2.4; B D McKay, Nov 29, 2008. */
 
