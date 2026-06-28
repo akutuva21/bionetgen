@@ -1,0 +1,3 @@
+## 2024-05-18 - Avoid std::regex for simple character matching in BioNetGen parser
+**Learning:** Using `std::regex` inside high-frequency string processing loops (like `MacroBNGModel::normalize_obs_aonly` and `PopulationMappingRule::build` when parsing chemical models) introduces massive compilation and execution overhead compared to manual string boundary/character checking. C++ regex state machines are exceptionally slow for simple tasks like finding `!` boundaries or `TotalRate` flags.
+**Action:** Replace `std::regex_search` and `std::regex_replace` with `std::string::find` and manual string traversal (e.g. tracking boundaries via `isspace` or specific terminating characters like `,)!`) in any hot paths where structural simple pattern matching is sufficient.
