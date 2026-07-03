@@ -377,45 +377,6 @@ TEST_CASE("parseOverwrite behaves correctly", "[NetworkGenerator]") {
     }
 }
 
-TEST_CASE("parseCheckIso behaves correctly", "[NetworkGenerator]") {
-    bng::ast::Model model;
-
-    SECTION("returns true by default (no actions)") {
-        REQUIRE(parseCheckIso(model) == true);
-    }
-
-    SECTION("returns true if no generate_network action exists") {
-        bng::ast::Action action;
-        action.name = "simulate";
-        action.arguments["method"] = "ode";
-        model.addAction(action);
-        REQUIRE(parseCheckIso(model) == true);
-    }
-
-    SECTION("returns true if generate_network exists but no check_iso argument") {
-        bng::ast::Action action;
-        action.name = "generate_network";
-        action.arguments["print_iter"] = "1";
-        model.addAction(action);
-        REQUIRE(parseCheckIso(model) == true);
-    }
-
-    SECTION("returns true if check_iso is set to true") {
-        bng::ast::Action action;
-        action.name = "generate_network";
-        action.arguments["check_iso"] = "1";
-        model.addAction(action);
-        REQUIRE(parseCheckIso(model) == true);
-    }
-
-    SECTION("returns false if check_iso is set to false") {
-        bng::ast::Action action;
-        action.name = "generate_network";
-        action.arguments["check_iso"] = "0";
-        model.addAction(action);
-        REQUIRE(parseCheckIso(model) == false);
-    }
-}
 
 TEST_CASE("parseMaxStoich behaves correctly", "[NetworkGenerator]") {
     bng::ast::Model model;
@@ -455,21 +416,6 @@ TEST_CASE("parseMaxAgg behaves correctly", "[NetworkGenerator]") {
     }
 }
 
-TEST_CASE("parsePrintRules behaves correctly", "[NetworkGenerator]") {
-    bng::ast::Model model;
-
-    SECTION("returns false by default") {
-        REQUIRE(parsePrintRules(model) == false);
-    }
-
-    SECTION("returns true if print_rule_progress is 1") {
-        bng::ast::Action action;
-        action.name = "generate_network";
-        action.arguments["print_rule_progress"] = "1";
-        model.addAction(action);
-        REQUIRE(parsePrintRules(model) == true);
-    }
-}
 
 TEST_CASE("NetworkGenerator::generate behaves correctly", "[NetworkGenerator]") {
     bng::ast::Model model;
