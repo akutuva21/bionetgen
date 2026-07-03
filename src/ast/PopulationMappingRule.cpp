@@ -135,15 +135,23 @@ PopulationMappingRuleResult newPopulationMappingRule(
     // ---- Extract optional name/label (Perl lines 26-36) ----
     std::string name;
     // Check for alphanumeric name followed by colon: name: ...
-    std::regex nameColonRe("^([\\w\\s*]+):\\s*");
-    std::regex indexRe("^(\\d+)\\s+");
-    std::smatch match;
-    if (std::regex_search(str, match, nameColonRe)) {
-        name = match[1].str();
-        str = match.suffix().str();
-    } else if (std::regex_search(str, match, indexRe)) {
-        name = match[1].str();
-        str = match.suffix().str();
+    auto colon_pos = str.find(':');
+    if (colon_pos != std::string::npos) {
+        name = str.substr(0, colon_pos);
+        str = str.substr(colon_pos + 1);
+        size_t i = 0;
+        while (i < str.size() && std::isspace(str[i])) i++;
+        str = str.substr(i);
+    } else {
+        size_t i = 0;
+        while (i < str.size() && std::isspace(str[i])) i++;
+        size_t start = i;
+        while (i < str.size() && std::isdigit(str[i])) i++;
+        if (i > start && i < str.size() && std::isspace(str[i])) {
+            name = str.substr(start, i - start);
+            while (i < str.size() && std::isspace(str[i])) i++;
+            str = str.substr(i);
+        }
     }
 
     // ---- Data structures for reactants, products, and references ----

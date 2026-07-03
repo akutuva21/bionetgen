@@ -402,9 +402,8 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
         std::string trimmed = line;
         trimmed.erase(0, trimmed.find_first_not_of(" \t"));
         std::smatch m;
-        std::regex re_begin("^begin\\s+(.*)");
-        if (std::regex_search(trimmed, m, re_begin)) {
-            std::string name = m[1].str();
+        if (trimmed.size() >= 5 && trimmed.compare(0, 5, "begin") == 0 && trimmed.size() > 5 && std::isspace(trimmed[5])) {
+            std::string name = trimmed.substr(5);
             name = trim(name);
             name = collapseWhitespace(name);
 
@@ -449,12 +448,12 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
                 WFILEpar.close();
             }
             // --- molecule_types ---
-            else if (std::regex_match(name, std::regex("^molecule[_ ]types$"))) {
+            else if (name == "molecule types" || name == "molecule_types") {
                 // We store the type info via pre_species1 later; just count.
                 std::cout << "Read " << block_dat.size() << " molecule types.\n";
             }
             // --- seed_species ---
-            else if (std::regex_match(name, std::regex("^seed[_ ]species$"))) {
+            else if (name == "seed species" || name == "seed_species") {
                 // Perl stores into SeedSpeciesList; we just count.
                 std::cout << "Read " << block_dat.size() << " species.\n";
             }
@@ -466,20 +465,29 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
                 std::cout << "Read " << block_dat.size() << " species.\n";
             }
             // --- reaction_rules ---
-            else if (std::regex_match(name, std::regex("^reaction[_ ]rules$"))) {
+            else if (name == "reaction rules" || name == "reaction_rules") {
                 int nerr_count = 0;
                 for (auto& [entry, lno] : block_dat) {
                     std::string str1ing = entry;
                     std::string nam1e;
                     // Check for user-named rule "name: ..."
-                    std::smatch rm;
-                    if (std::regex_search(str1ing, rm, std::regex("^\\s*([^:].*)[:]\\s*"))) {
-                        nam1e = rm[1].str();
+                    // check for label
+                    auto colon_pos = str1ing.find(':');
+                    if (colon_pos != std::string::npos) {
+                        nam1e = str1ing.substr(0, colon_pos);
+                        str1ing = str1ing.substr(colon_pos + 1);
                         std::cerr << "ERROR 1002   rules  (user) name=" << nam1e << "\n";
                         return "ERROR 1002: named rules not supported";
-                    } else if (std::regex_search(str1ing, rm, std::regex("^\\s*(\\d+)\\s+"))) {
-                        nam1e = rm[1].str();
-                        str1ing = rm.suffix().str();
+                    } else {
+                        size_t i = 0;
+                        while (i < str1ing.size() && std::isspace(str1ing[i])) i++;
+                        size_t start = i;
+                        while (i < str1ing.size() && std::isdigit(str1ing[i])) i++;
+                        if (i > start && i < str1ing.size() && std::isspace(str1ing[i])) {
+                            nam1e = str1ing.substr(start, i - start);
+                            while (i < str1ing.size() && std::isspace(str1ing[i])) i++;
+                            str1ing = str1ing.substr(i);
+                        }
                     }
                     str1ing = ltrim(str1ing);
                     reac1tion_.push_back(str1ing);
@@ -495,9 +503,13 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
                 for (auto& [entry, lno] : block_dat) {
                     std::string str1ing = entry;
                     // Strip leading numeric index
-                    std::smatch rm;
-                    if (std::regex_search(str1ing, rm, std::regex("^\\s*\\d+\\s+"))) {
-                        str1ing = rm.suffix().str();
+                    size_t i = 0;
+                    while (i < str1ing.size() && std::isspace(str1ing[i])) i++;
+                    size_t start = i;
+                    while (i < str1ing.size() && std::isdigit(str1ing[i])) i++;
+                    if (i > start && i < str1ing.size() && std::isspace(str1ing[i])) {
+                        while (i < str1ing.size() && std::isspace(str1ing[i])) i++;
+                        str1ing = str1ing.substr(i);
                     }
                     obser1vable_.push_back(str1ing);
                 }
@@ -513,7 +525,7 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
             }
         }
         // Check for action lines like "generate_network" / "simulate"
-        else if (std::regex_search(trimmed, m, std::regex("^([A-Za-z][^(]*)"))) {
+        else if (!trimmed.empty() && std::isalpha(trimmed[0])) {
             gene1rate_.push_back(line);
         }
     } // while get_line
@@ -610,9 +622,9 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
 
         // Strip leading label "name: ..."
         {
-            std::smatch m;
-            if (std::regex_search(entry, m, std::regex("^\\s*([^:].*)[:]\\s*"))) {
-                name = m[1].str();
+            auto colon_pos = entry.find(':');
+            if (colon_pos != std::string::npos) {
+                name = entry.substr(0, colon_pos);
                 std::cerr << "ERROR 1001 block species      (user) name=" << name << "\n";
                 return;
             } else {
@@ -635,13 +647,12 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
         std::string spec_entry = tok1ens[0];
 
         // Extract molecule(site,site,...) patterns
-        // Repeatedly match (...) groups
-        std::regex re_paren("([\\(])(.*?)([\\)])");
-        std::smatch pm;
         std::string remaining = spec_entry;
-        while (std::regex_search(remaining, pm, re_paren)) {
+        size_t open_paren, close_paren;
+        while ((open_paren = remaining.find('(')) != std::string::npos &&
+               (close_paren = remaining.find(')', open_paren)) != std::string::npos) {
             // name is everything before the '('
-            std::string prefix_str = pm.prefix().str();
+            std::string prefix_str = remaining.substr(0, open_paren);
             // Get the molecule name: last segment after '.'
             auto dot_pos = prefix_str.rfind('.');
             if (dot_pos != std::string::npos) {
@@ -651,7 +662,7 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
             }
 
             if (nm_site.find(name) == nm_site.end()) {
-                std::string inside = pm[2].str();  // contents inside parentheses
+                std::string inside = remaining.substr(open_paren + 1, close_paren - open_paren - 1);
                 auto sits = split(inside, ',');
                 // Strip modifiers from site names
                 for (auto& s : sits) {
@@ -674,7 +685,7 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
                 nm_site[name] = static_cast<int>(sits.size());
             }
 
-            remaining = pm.suffix().str();
+            remaining = remaining.substr(close_paren + 1);
             // Also strip "name." prefix from remaining
             if (!remaining.empty() && remaining[0] == '.') {
                 remaining = remaining.substr(1);
@@ -709,9 +720,10 @@ void MacroBNGModel::del_blank(const std::vector<std::string>& str,
         line = replaceAll(line, " ", ";");
 
         // If starts with digit followed by ';', strip the leading number
-        std::smatch m;
-        if (std::regex_search(line, m, std::regex("^\\d+?;"))) {
-            line = ";" + m.suffix().str();
+        size_t i = 0;
+        while (i < line.size() && std::isdigit(line[i])) i++;
+        if (i > 0 && i < line.size() && line[i] == ';') {
+            line = ";" + line.substr(i + 1);
         } else {
             line = ";" + line;
         }
@@ -1211,20 +1223,22 @@ std::string MacroBNGModel::num_site(const std::string& re, const std::string& pr
 
     // Extract contents inside parentheses from reactant
     std::string name;
-    std::smatch m;
-    std::regex re_paren("[\\(](.*)[\\)]");
 
     std::string ss_re;
-    if (std::regex_search(re, m, re_paren)) {
-        name = m.prefix().str();
-        ss_re = m[1].str();
+    auto re_open = re.find('(');
+    auto re_close = re.rfind(')');
+    if (re_open != std::string::npos && re_close != std::string::npos && re_close > re_open) {
+        name = re.substr(0, re_open);
+        ss_re = re.substr(re_open + 1, re_close - re_open - 1);
     }
     auto rem = split(ss_re, ',');
 
     // Extract contents from product
     std::string ss_pr;
-    if (std::regex_search(pr, m, re_paren)) {
-        ss_pr = m[1].str();
+    auto pr_open = pr.find('(');
+    auto pr_close = pr.rfind(')');
+    if (pr_open != std::string::npos && pr_close != std::string::npos && pr_close > pr_open) {
+        ss_pr = pr.substr(pr_open + 1, pr_close - pr_open - 1);
     }
     auto prm = split(ss_pr, ',');
 
@@ -1380,13 +1394,13 @@ void MacroBNGModel::hash_sor(
             // Find matching molecule in product
             std::string p1;
             {
-                std::string qname = quotemeta(name);
-                std::regex re_prod(qname + "[\\(].*?[)]");
-                std::smatch pm;
-                if (std::regex_search(prod, pm, re_prod)) {
-                    p1 = pm[0].str();
-                    // Remove the match from prod
-                    prod = pm.prefix().str() + pm.suffix().str();
+                auto name_pos = prod.find(name + "(");
+                if (name_pos != std::string::npos) {
+                    auto close_pos = prod.find(')', name_pos);
+                    if (close_pos != std::string::npos) {
+                        p1 = prod.substr(name_pos, close_pos - name_pos + 1);
+                        prod.erase(name_pos, close_pos - name_pos + 1);
+                    }
                 }
             }
             mprod.push_back(p1);
@@ -2473,13 +2487,14 @@ void MacroBNGModel::cor_net(const std::string& param_prefix) {
             if (obs.find(";" + egf) != std::string::npos ||
                 endsWith(obs, ";" + egf)) {
                 // Extract group name: Molecules;name;...
-                std::regex mol_re("Molecules;(.*?);");
-                std::smatch m;
-                if (std::regex_search(obs, m, mol_re)) {
-                    // egf_tot_[group_name] — Perl assigns @rabm here
-                    // but the value is unused beyond group filtering
-                    egf_tot_[m[1].str()] = {};
-                    break;
+                auto mol_pos = obs.find("Molecules;");
+                if (mol_pos != std::string::npos) {
+                    auto start_idx = mol_pos + 10; // length of "Molecules;"
+                    auto end_idx = obs.find(';', start_idx);
+                    if (end_idx != std::string::npos) {
+                        egf_tot_[obs.substr(start_idx, end_idx - start_idx)] = {};
+                        break;
+                    }
                 }
             }
         }
