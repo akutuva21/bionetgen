@@ -16,7 +16,7 @@ int SYMPOS_LINSOLVE(double **a, double **b, int nrhs, int dim){
 #endif
     int Nrhs, Dim;
     int info;
-    extern void DPOSV();
+    extern void DPOSV(const char *, int *, int *, double *, int *, double *, int *, int *);
     
     Dim= dim;
     Nrhs= nrhs;

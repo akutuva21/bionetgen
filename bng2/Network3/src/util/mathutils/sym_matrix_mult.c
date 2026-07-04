@@ -13,7 +13,7 @@ void SYM_MATRIX_MULT(double **a, double **b, double **c, int dim){
     int n=dim;
     double alpha=1.0;
     double beta=0.0;
-    extern void DSYMM();
+    extern void DSYMM(const char *, const char *, int *, int *, double *, double *, int *, double *, int *, double *, double *, int *);
     
     /* transpose necessary because of opposite way Fortran references */
     /* arrays */
