@@ -402,7 +402,7 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
         std::string trimmed = line;
         trimmed.erase(0, trimmed.find_first_not_of(" \t"));
         std::smatch m;
-        std::regex re_begin("^begin\\s+(.*)");
+        static const std::regex re_begin("^begin\\s+(.*)");
         if (std::regex_search(trimmed, m, re_begin)) {
             std::string name = m[1].str();
             name = trim(name);
@@ -449,12 +449,12 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
                 WFILEpar.close();
             }
             // --- molecule_types ---
-            else if (std::regex_match(name, std::regex("^molecule[_ ]types$"))) {
+            else if (std::regex_match(name, []() -> const std::regex& { static const std::regex r("^molecule[_ ]types$"); return r; }())) {
                 // We store the type info via pre_species1 later; just count.
                 std::cout << "Read " << block_dat.size() << " molecule types.\n";
             }
             // --- seed_species ---
-            else if (std::regex_match(name, std::regex("^seed[_ ]species$"))) {
+            else if (std::regex_match(name, []() -> const std::regex& { static const std::regex r("^seed[_ ]species$"); return r; }())) {
                 // Perl stores into SeedSpeciesList; we just count.
                 std::cout << "Read " << block_dat.size() << " species.\n";
             }
@@ -466,18 +466,18 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
                 std::cout << "Read " << block_dat.size() << " species.\n";
             }
             // --- reaction_rules ---
-            else if (std::regex_match(name, std::regex("^reaction[_ ]rules$"))) {
+            else if (std::regex_match(name, []() -> const std::regex& { static const std::regex r("^reaction[_ ]rules$"); return r; }())) {
                 int nerr_count = 0;
                 for (auto& [entry, lno] : block_dat) {
                     std::string str1ing = entry;
                     std::string nam1e;
                     // Check for user-named rule "name: ..."
                     std::smatch rm;
-                    if (std::regex_search(str1ing, rm, std::regex("^\\s*([^:].*)[:]\\s*"))) {
+                    if (std::regex_search(str1ing, rm, []() -> const std::regex& { static const std::regex r("^\\s*([^:].*)[:]\\s*"); return r; }())) {
                         nam1e = rm[1].str();
                         std::cerr << "ERROR 1002   rules  (user) name=" << nam1e << "\n";
                         return "ERROR 1002: named rules not supported";
-                    } else if (std::regex_search(str1ing, rm, std::regex("^\\s*(\\d+)\\s+"))) {
+                    } else if (std::regex_search(str1ing, rm, []() -> const std::regex& { static const std::regex r("^\\s*(\\d+)\\s+"); return r; }())) {
                         nam1e = rm[1].str();
                         str1ing = rm.suffix().str();
                     }
@@ -496,7 +496,7 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
                     std::string str1ing = entry;
                     // Strip leading numeric index
                     std::smatch rm;
-                    if (std::regex_search(str1ing, rm, std::regex("^\\s*\\d+\\s+"))) {
+                    if (std::regex_search(str1ing, rm, []() -> const std::regex& { static const std::regex r("^\\s*\\d+\\s+"); return r; }())) {
                         str1ing = rm.suffix().str();
                     }
                     obser1vable_.push_back(str1ing);
@@ -513,7 +513,7 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
             }
         }
         // Check for action lines like "generate_network" / "simulate"
-        else if (std::regex_search(trimmed, m, std::regex("^([A-Za-z][^(]*)"))) {
+        else if (std::regex_search(trimmed, m, []() -> const std::regex& { static const std::regex r("^([A-Za-z][^(]*)"); return r; }())) {
             gene1rate_.push_back(line);
         }
     } // while get_line
@@ -611,7 +611,7 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
         // Strip leading label "name: ..."
         {
             std::smatch m;
-            if (std::regex_search(entry, m, std::regex("^\\s*([^:].*)[:]\\s*"))) {
+            if (std::regex_search(entry, m, []() -> const std::regex& { static const std::regex r("^\\s*([^:].*)[:]\\s*"); return r; }())) {
                 name = m[1].str();
                 std::cerr << "ERROR 1001 block species      (user) name=" << name << "\n";
                 return;
@@ -636,7 +636,7 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
 
         // Extract molecule(site,site,...) patterns
         // Repeatedly match (...) groups
-        std::regex re_paren("([\\(])(.*?)([\\)])");
+        static const std::regex re_paren("([\\(])(.*?)([\\)])");
         std::smatch pm;
         std::string remaining = spec_entry;
         while (std::regex_search(remaining, pm, re_paren)) {
@@ -710,7 +710,7 @@ void MacroBNGModel::del_blank(const std::vector<std::string>& str,
 
         // If starts with digit followed by ';', strip the leading number
         std::smatch m;
-        if (std::regex_search(line, m, std::regex("^\\d+?;"))) {
+        if (std::regex_search(line, m, []() -> const std::regex& { static const std::regex r("^\\d+?;"); return r; }())) {
             line = ";" + m.suffix().str();
         } else {
             line = ";" + line;
@@ -1212,7 +1212,7 @@ std::string MacroBNGModel::num_site(const std::string& re, const std::string& pr
     // Extract contents inside parentheses from reactant
     std::string name;
     std::smatch m;
-    std::regex re_paren("[\\(](.*)[\\)]");
+    static const std::regex re_paren("[\\(](.*)[\\)]");
 
     std::string ss_re;
     if (std::regex_search(re, m, re_paren)) {
@@ -2473,7 +2473,7 @@ void MacroBNGModel::cor_net(const std::string& param_prefix) {
             if (obs.find(";" + egf) != std::string::npos ||
                 endsWith(obs, ";" + egf)) {
                 // Extract group name: Molecules;name;...
-                std::regex mol_re("Molecules;(.*?);");
+                static const std::regex mol_re("Molecules;(.*?);");
                 std::smatch m;
                 if (std::regex_search(obs, m, mol_re)) {
                     // egf_tot_[group_name] — Perl assigns @rabm here
