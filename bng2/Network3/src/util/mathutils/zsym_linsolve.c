@@ -21,7 +21,7 @@ int ZSYM_LINSOLVE(dcomplex **a, dcomplex **b, int nrhs, int dim){
     static int lwork;
     static int olddim;
     static int initflag=1;
-    extern void ZSYSV();
+    extern void ZSYSV(char*, int*, int*, double*, int*, int*, double*, int*, double*, int*, int*);
     
     if (initflag){
 	initflag = 0;
