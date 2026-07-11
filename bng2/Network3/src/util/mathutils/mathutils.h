@@ -6,6 +6,10 @@
 /* only include this header information once */
 #ifndef INCLUDED_MATHUTILS
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -369,3 +373,7 @@ static double dswap;
 #endif
 
 
+
+#ifdef __cplusplus
+}
+#endif
