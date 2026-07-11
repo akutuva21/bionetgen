@@ -402,9 +402,8 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
         std::string trimmed = line;
         trimmed.erase(0, trimmed.find_first_not_of(" \t"));
         std::smatch m;
-        std::regex re_begin("^begin\\s+(.*)");
-        if (std::regex_search(trimmed, m, re_begin)) {
-            std::string name = m[1].str();
+        if (trimmed.compare(0, 6, "begin ") == 0 || trimmed.compare(0, 6, "begin\t") == 0) {
+            std::string name = trimmed.substr(6);
             name = trim(name);
             name = collapseWhitespace(name);
 
@@ -635,13 +634,15 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
         std::string spec_entry = tok1ens[0];
 
         // Extract molecule(site,site,...) patterns
-        // Repeatedly match (...) groups
-        std::regex re_paren("([\\(])(.*?)([\\)])");
-        std::smatch pm;
         std::string remaining = spec_entry;
-        while (std::regex_search(remaining, pm, re_paren)) {
+        while (true) {
+            size_t start = remaining.find('(');
+            if (start == std::string::npos) break;
+            size_t end = remaining.find(')', start);
+            if (end == std::string::npos) break;
+
             // name is everything before the '('
-            std::string prefix_str = pm.prefix().str();
+            std::string prefix_str = remaining.substr(0, start);
             // Get the molecule name: last segment after '.'
             auto dot_pos = prefix_str.rfind('.');
             if (dot_pos != std::string::npos) {
@@ -651,7 +652,7 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
             }
 
             if (nm_site.find(name) == nm_site.end()) {
-                std::string inside = pm[2].str();  // contents inside parentheses
+                std::string inside = remaining.substr(start + 1, end - start - 1);  // contents inside parentheses
                 auto sits = split(inside, ',');
                 // Strip modifiers from site names
                 for (auto& s : sits) {
@@ -674,7 +675,7 @@ void MacroBNGModel::pre_species1(std::map<std::string, int>& nm_site,
                 nm_site[name] = static_cast<int>(sits.size());
             }
 
-            remaining = pm.suffix().str();
+            remaining = remaining.substr(end + 1);
             // Also strip "name." prefix from remaining
             if (!remaining.empty() && remaining[0] == '.') {
                 remaining = remaining.substr(1);
@@ -1380,13 +1381,14 @@ void MacroBNGModel::hash_sor(
             // Find matching molecule in product
             std::string p1;
             {
-                std::string qname = quotemeta(name);
-                std::regex re_prod(qname + "[\\(].*?[)]");
-                std::smatch pm;
-                if (std::regex_search(prod, pm, re_prod)) {
-                    p1 = pm[0].str();
-                    // Remove the match from prod
-                    prod = pm.prefix().str() + pm.suffix().str();
+                size_t start = prod.find(name + "(");
+                if (start != std::string::npos) {
+                    size_t end = prod.find(')', start);
+                    if (end != std::string::npos) {
+                        p1 = prod.substr(start, end - start + 1);
+                        // Remove the match from prod
+                        prod = prod.substr(0, start) + prod.substr(end + 1);
+                    }
                 }
             }
             mprod.push_back(p1);
