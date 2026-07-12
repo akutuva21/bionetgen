@@ -3,7 +3,7 @@
 # scans a single parameter using the setParameter command".  User provides
 # a BNGL file containing the model - actions in this file are ignored.
 #
-# Written by Jim Faeder, Los Alamos National Laboratory, 3/6/2007 
+# Written by Jim Faeder, Los Alamos National Laboratory, 3/6/2007
 
 # Updated on 2 April 2012 by J.Hogg
 # + checks environment variables BNGPATH and BioNetGenRoot for the BNG folder
@@ -104,7 +104,7 @@ while ( @ARGV )
 {
     my $arg = shift @ARGV;
     if ( $arg =~ s/^(-{1,2})// )
-    {  
+    {
         if ( $arg eq 'log' ){
             $log = 1;
         }
@@ -134,18 +134,18 @@ while ( @ARGV )
             if ($method =~ /^-{1,2}/ || $method =~ /\.bngl$/)
             { die "Syntax error: '$arg' requires value"; }
             if ($method eq 'pla'){
-            	my $pla_config = shift @ARGV;
-            	if ($pla_config =~ /^-{1,2}/ || $pla_config =~ /\.bngl$/)
-            	{ die "Syntax error: PLA simulator requires a simulation configuration: --method pla CONFIG. " . 
-            	      "Please try again."; }
-            	$method = "\"$method\",pla_config=>\"$pla_config\"";
+		my $pla_config = shift @ARGV;
+		if ($pla_config =~ /^-{1,2}/ || $pla_config =~ /\.bngl$/)
+		{ die "Syntax error: PLA simulator requires a simulation configuration: --method pla CONFIG. " .
+		      "Please try again."; }
+		$method = "\"$method\",pla_config=>\"$pla_config\"";
             }
             else{
-            	$method = "\"$method\"";
+		$method = "\"$method\"";
             }
         }
         elsif($arg eq 'pla_output'){
-        	$pla_output = 1;
+		$pla_output = 1;
         }
         elsif($arg eq 'verbose'){
             $verbose = 1;
@@ -239,8 +239,8 @@ if ($log)
 #	$delta = ($var_max-$var_min)/($n_pts-1);
 #}
 
-# Read file 
-open(IN, $file) or die "Couldn't open file $file: $?\n";
+# Read file
+open(IN, '<', $file) or die "Couldn't open file $file: $?\n";
 my $script = "";
 while ( my $line = <IN> )
 {
@@ -323,7 +323,7 @@ my @val;
             for ($i = 0; $i < $n_dims; $i++) {
                 do {
                     $val[$i] = $mandatory_args[3*$i + 2] + ($mandatory_args[3*$i + 3] - $mandatory_args[3*$i + 2])*int(rand($n_pts))/$n_pts;
-                    
+
                 } while (grep( /^$val[$i]$/, @{$vals[$i]}));
             }
         }
@@ -351,20 +351,20 @@ my @val;
         }
         my $opt = "method=>$method";
         if ($pla_output){
-        	$opt .= ",pla_output=>1";
+		$opt .= ",pla_output=>1";
         }
         $opt .= ",suffix=>\"$srun\",t_end=>$t_end,n_steps=>$n_steps";
         if ($steady_state){
             $opt .= ",steady_state=>1";
         }
         if ($verbose){
-        	$opt .= ",verbose=>1";
+		$opt .= ",verbose=>1";
         }
         printf BNGL "simulate({$opt})\n"; #"simulate_ode({$opt})\n";
         printf BNGL "resetConcentrations()\n";
         printf "simulate({$opt})\n"; #"simulate_ode({$opt})\n";
         printf "resetConcentrations()\n";
-    }  
+    }
 }
 close(BNGL);
 
@@ -381,7 +381,7 @@ open( my $logFH, ">", $logfile ) or die $!;
 $logFH->autoflush(1);
 
 # start simulator as child process with communication pipes
-my ($child_in, $child_out); 
+my ($child_in, $child_out);
 my $pid = eval{ open3( $child_in, $child_out, $child_out, @command ) };
 if ($@) { die $@; }
 
@@ -561,11 +561,10 @@ OPTIONS:
                                                                         or ratio between integral and maximum ('peakHeight'))
   --n_dims            : number of variables to sample over (specify variable name, minimum, and maximum for each variable being scanned)
 
-Runs simulations of MODEL with a range of values of parameter VAR using the method 
-METHOD. Simulation data is placed in a directory folder named PREFIX_VAR. A data 
-file called PREFIX_VAR.scan contains the final simulation state for each parameter 
+Runs simulations of MODEL with a range of values of parameter VAR using the method
+METHOD. Simulation data is placed in a directory folder named PREFIX_VAR. A data
+file called PREFIX_VAR.scan contains the final simulation state for each parameter
 value. The scan file may be visualized with a plotting tool, such as PhiBPlot.
 };
 #END_HELP
 }
-
