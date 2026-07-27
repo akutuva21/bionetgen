@@ -198,6 +198,17 @@ void OdeIntegrator::compile() {
         }
     }
 
+
+    // Precompute lowercase function names to avoid O(N * M) allocations in the reaction loop
+    std::vector<std::pair<std::string, std::string>> cachedFuncNames;
+    cachedFuncNames.reserve(model_.getFunctions().size());
+    for (const auto& func : model_.getFunctions()) {
+        std::string fname = func.getName();
+        std::string fnameLower = fname;
+        std::transform(fnameLower.begin(), fnameLower.end(), fnameLower.begin(), ::tolower);
+        cachedFuncNames.emplace_back(fname, fnameLower);
+    }
+
     std::size_t rxnIndex = 0;
     for (const auto& rxn : network_.reactions.all()) {
         CompiledReaction crxn;
@@ -547,10 +558,9 @@ void OdeIntegrator::compile() {
             std::string matchedFuncName;
             if (!isFunctional) {
                 const std::string rawRL = rxn.getRateLaw();
-                for (const auto& func : model_.getFunctions()) {
-                    const auto& fname = func.getName();
-                    std::string fnameLower = fname;
-                    std::transform(fnameLower.begin(), fnameLower.end(), fnameLower.begin(), ::tolower);
+                for (const auto& f : cachedFuncNames) {
+                    const auto& fname = f.first;
+                    const auto& fnameLower = f.second;
                     if (hasWordBoundaryMatch(rateLawLower, fnameLower) ||
                         hasWordBoundaryMatch(rawRL, fname)) {
                         isFunctional = true;
@@ -586,10 +596,10 @@ void OdeIntegrator::compile() {
             const std::string rawRL = rxn.getRateLaw();
             std::string rlLow = rawRL;
             std::transform(rlLow.begin(), rlLow.end(), rlLow.begin(), ::tolower);
-            for (const auto& func : model_.getFunctions()) {
-                std::string fnameLow = func.getName();
-                std::transform(fnameLow.begin(), fnameLow.end(), fnameLow.begin(), ::tolower);
-                if (hasWordBoundaryMatch(rlLow, fnameLow) || hasWordBoundaryMatch(rawRL, func.getName())) {
+            for (const auto& f : cachedFuncNames) {
+                const auto& fname = f.first;
+                const auto& fnameLow = f.second;
+                if (hasWordBoundaryMatch(rlLow, fnameLow) || hasWordBoundaryMatch(rawRL, fname)) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
@@ -598,7 +608,7 @@ void OdeIntegrator::compile() {
                         funcExpr2 = parser::parseExpression(rawRL);
                     } catch (...) {
                         // Fallback: use bare identifier if parsing fails
-                        funcExpr2 = ast::Expression::identifier(func.getName());
+                        funcExpr2 = ast::Expression::identifier(fname);
                     }
 
                     // Apply unit conversion and stat factor
@@ -680,8 +690,8 @@ void OdeIntegrator::compile() {
                     // functions like kPlus() appear as Function nodes whose
                     // name is not a built-in).
                     if (!needsRuntime && str.find('(') != std::string::npos) {
-                        for (const auto& func : model_.getFunctions()) {
-                            if (hasWordBoundaryMatch(str, func.getName())) {
+                        for (const auto& f : cachedFuncNames) {
+                            if (hasWordBoundaryMatch(str, f.first)) {
                                 needsRuntime = true;
                                 break;
                             }
