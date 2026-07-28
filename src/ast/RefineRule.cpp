@@ -884,11 +884,19 @@ std::unique_ptr<ReactionRule> restrictRule(
     if (products.size() != nProducts) {
         bool deleteMolecules = false;
         for (const auto& mod : rule.getModifiers()) {
-            std::string lower = mod;
-            std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-            if (lower == "deletemolecules") {
-                deleteMolecules = true;
-                break;
+            if (mod.size() == 15) { // "deletemolecules" is 15 chars
+                bool match = true;
+                const char* target = "deletemolecules";
+                for (std::size_t i = 0; i < 15; ++i) {
+                    if (std::tolower(static_cast<unsigned char>(mod[i])) != target[i]) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) {
+                    deleteMolecules = true;
+                    break;
+                }
             }
         }
         if (deleteMolecules && products.size() > nProducts) {
