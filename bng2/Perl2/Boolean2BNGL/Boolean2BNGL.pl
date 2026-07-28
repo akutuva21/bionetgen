@@ -37,7 +37,7 @@ $outfile = File::Spec->catfile( $vol, $dir, $outfile );
 
 # read entire file as a string
 local $/ = undef;
-open FILE, $file or die "Couldn't open file: $!";
+open(FILE, "<", $file) or die "Couldn't open file: $!";
 binmode FILE;
 my $text = <FILE>;
 close FILE;
