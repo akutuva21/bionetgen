@@ -125,6 +125,33 @@ bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
     return false;
 }
 
+bool hasWordBoundaryMatchCaseInsensitive(const std::string& text, const std::string& target) {
+    if (target.empty() || text.length() < target.length()) {
+        return false;
+    }
+
+    auto iequals = [](char c1, char c2) {
+        return std::tolower(static_cast<unsigned char>(c1)) == std::tolower(static_cast<unsigned char>(c2));
+    };
+
+    auto it = text.begin();
+    while (it != text.end()) {
+        it = std::search(it, text.end(), target.begin(), target.end(), iequals);
+
+        if (it != text.end()) {
+            std::size_t pos = std::distance(text.begin(), it);
+            bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
+            bool rightBoundary = (pos + target.length() == text.length()) ||
+                                 (!std::isalnum(static_cast<unsigned char>(text[pos + target.length()])) && text[pos + target.length()] != '_');
+            if (leftBoundary && rightBoundary) {
+                return true;
+            }
+            it += target.length();
+        }
+    }
+    return false;
+}
+
 } // anonymous namespace
 
 
@@ -384,27 +411,30 @@ void OdeIntegrator::compile() {
         bool isMM = false;  // True when rate law is MM (Michaelis-Menten), not Sat
         std::size_t kwLen = 0;
         {
-            std::string rlLower = rawRateLaw;
-            std::transform(rlLower.begin(), rlLower.end(), rlLower.begin(), ::tolower);
             // Trim leading whitespace
-            auto start = rlLower.find_first_not_of(" \t\r\n");
-            if (start != std::string::npos) rlLower = rlLower.substr(start);
+            auto start = rawRateLaw.find_first_not_of(" \t\r\n");
+            std::string rlTrimmed = (start != std::string::npos) ? rawRateLaw.substr(start) : rawRateLaw;
 
-            auto isWordPrefix = [](const std::string& str, const std::string& kw) {
-                if (str.rfind(kw, 0) != 0) return false;
-                if (str.size() == kw.size()) return true;
-                char nextC = str[kw.size()];
+            auto isWordPrefix = [](const std::string& str, const std::string& kwLower) {
+                if (str.size() < kwLower.size()) return false;
+                for (std::size_t i = 0; i < kwLower.size(); ++i) {
+                    if (std::tolower(static_cast<unsigned char>(str[i])) != static_cast<unsigned char>(kwLower[i])) {
+                        return false;
+                    }
+                }
+                if (str.size() == kwLower.size()) return true;
+                char nextC = str[kwLower.size()];
                 return nextC == ' ' || nextC == '\t' || nextC == '\r' || nextC == '\n' || nextC == '(';
             };
 
-            if (isWordPrefix(rlLower, "sat")) {
+            if (isWordPrefix(rlTrimmed, "sat")) {
                 isSatMMHill = true;
                 kwLen = 3;
-            } else if (isWordPrefix(rlLower, "mm")) {
+            } else if (isWordPrefix(rlTrimmed, "mm")) {
                 isSatMMHill = true;
                 isMM = true;
                 kwLen = 2;
-            } else if (isWordPrefix(rlLower, "hill")) {
+            } else if (isWordPrefix(rlTrimmed, "hill")) {
                 isSatMMHill = true;
                 kwLen = 4;
             }
@@ -528,10 +558,11 @@ void OdeIntegrator::compile() {
         const auto& rateExpr = rxn.getRateExpression();
 
         if (!isFunctional && rateExpr.has_value()) {
-            std::string rateLawLower = rawRateLaw;
-            std::transform(rateLawLower.begin(), rateLawLower.end(), rateLawLower.begin(), ::tolower);
-
-            if (rateLawLower.find("time") != std::string::npos) {
+            auto iequals = [](char c1, char c2) {
+                return std::tolower(static_cast<unsigned char>(c1)) == std::tolower(static_cast<unsigned char>(c2));
+            };
+            std::string timeStr = "time";
+            if (std::search(rawRateLaw.begin(), rawRateLaw.end(), timeStr.begin(), timeStr.end(), iequals) != rawRateLaw.end()) {
                 isFunctional = true;
             } else {
                 // Check for observable dependencies
@@ -549,10 +580,7 @@ void OdeIntegrator::compile() {
                 const std::string rawRL = rxn.getRateLaw();
                 for (const auto& func : model_.getFunctions()) {
                     const auto& fname = func.getName();
-                    std::string fnameLower = fname;
-                    std::transform(fnameLower.begin(), fnameLower.end(), fnameLower.begin(), ::tolower);
-                    if (hasWordBoundaryMatch(rateLawLower, fnameLower) ||
-                        hasWordBoundaryMatch(rawRL, fname)) {
+                    if (hasWordBoundaryMatchCaseInsensitive(rawRL, fname)) {
                         isFunctional = true;
                         matchedFuncName = fname;
                         break;
@@ -584,12 +612,8 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
-            std::string rlLow = rawRL;
-            std::transform(rlLow.begin(), rlLow.end(), rlLow.begin(), ::tolower);
             for (const auto& func : model_.getFunctions()) {
-                std::string fnameLow = func.getName();
-                std::transform(fnameLow.begin(), fnameLow.end(), fnameLow.begin(), ::tolower);
-                if (hasWordBoundaryMatch(rlLow, fnameLow) || hasWordBoundaryMatch(rawRL, func.getName())) {
+                if (hasWordBoundaryMatchCaseInsensitive(rawRL, func.getName())) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
