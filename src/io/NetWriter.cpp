@@ -469,9 +469,14 @@ std::optional<ArrheniusInfo> parseArrhenius(const std::string& rateLaw) {
     if (endPos != std::string::npos) s = s.substr(0, endPos + 1);
 
     // Check for "arrhenius(" prefix (case-insensitive)
-    std::string lower = s;
-    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-    if (lower.rfind("arrhenius(", 0) != 0 && lower.rfind("arrhenius (", 0) != 0)
+    auto match_prefix_nocase = [](const std::string& str, const std::string& prefix) {
+        if (str.size() < prefix.size()) return false;
+        for (std::size_t i = 0; i < prefix.size(); ++i) {
+            if (std::tolower(static_cast<unsigned char>(str[i])) != prefix[i]) return false;
+        }
+        return true;
+    };
+    if (!match_prefix_nocase(s, "arrhenius(") && !match_prefix_nocase(s, "arrhenius ("))
         return std::nullopt;
 
     // Find opening paren
