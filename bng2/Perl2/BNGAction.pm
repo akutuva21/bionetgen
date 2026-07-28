@@ -1624,7 +1624,7 @@ sub bifurcate
     
     # extract forward scan data
     my @forward;
-    open FILE, $scanfiles[0] or die "Couldn't open file: $!"; 
+    open(FILE, "<", $scanfiles[0]) or die "Couldn't open file: $!";
     my $line = <FILE>; # first line
     chomp $line;
     $line =~ s/^\s*#\s+//; # remove leading # and whitespace
@@ -1643,7 +1643,7 @@ sub bifurcate
 	
 	# extract backward scan data
 	my @backward;
-	open FILE, $scanfiles[1] or die "Couldn't open file: $!"; 
+	open(FILE, "<", $scanfiles[1]) or die "Couldn't open file: $!";
     $line = <FILE>; # first line
     $i = 0;
 	while ($line = <FILE>){

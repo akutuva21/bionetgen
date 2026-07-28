@@ -8,7 +8,7 @@ no warnings 'redefine';
 sub parseOpts
 {
 	my $file = shift @_;
-	open FILE,$file or die "Cannot open file ".$file."\n";
+	open(FILE, "<", $file) or die "Cannot open file ".$file."\n";
 	my @lines = <FILE>;
 	close FILE;
 	print "Processing Opts file ".$file."\n";
