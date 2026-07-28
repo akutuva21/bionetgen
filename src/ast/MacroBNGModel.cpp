@@ -401,10 +401,8 @@ std::string MacroBNGModel::pre_macr(const std::string& param_prefix) {
         // Check for "begin <block>"
         std::string trimmed = line;
         trimmed.erase(0, trimmed.find_first_not_of(" \t"));
-        std::smatch m;
-        static const std::regex re_begin("^begin\\s+(.*)");
-        if (std::regex_search(trimmed, m, re_begin)) {
-            std::string name = m[1].str();
+        if (trimmed.compare(0, 6, "begin ") == 0 || trimmed.compare(0, 6, "begin\t") == 0) {
+            std::string name = trimmed.substr(6);
             name = trim(name);
             name = collapseWhitespace(name);
 
