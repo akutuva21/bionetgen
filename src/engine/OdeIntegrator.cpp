@@ -125,32 +125,7 @@ bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
     return false;
 }
 
-bool hasWordBoundaryMatchCaseInsensitive(const std::string& text, const std::string& target) {
-    if (target.empty() || text.length() < target.length()) {
-        return false;
-    }
 
-    auto iequals = [](char c1, char c2) {
-        return std::tolower(static_cast<unsigned char>(c1)) == std::tolower(static_cast<unsigned char>(c2));
-    };
-
-    auto it = text.begin();
-    while (it != text.end()) {
-        it = std::search(it, text.end(), target.begin(), target.end(), iequals);
-
-        if (it != text.end()) {
-            std::size_t pos = std::distance(text.begin(), it);
-            bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
-            bool rightBoundary = (pos + target.length() == text.length()) ||
-                                 (!std::isalnum(static_cast<unsigned char>(text[pos + target.length()])) && text[pos + target.length()] != '_');
-            if (leftBoundary && rightBoundary) {
-                return true;
-            }
-            it += target.length();
-        }
-    }
-    return false;
-}
 
 } // anonymous namespace
 
@@ -223,6 +198,14 @@ void OdeIntegrator::compile() {
                 }
             }
         }
+    }
+
+    // Precompute lowercase function names to avoid O(N * M) allocations and transformations
+    std::vector<std::string> lowerFuncNames;
+    for (const auto& func : model_.getFunctions()) {
+        std::string fname = func.getName();
+        std::transform(fname.begin(), fname.end(), fname.begin(), [](unsigned char c) { return std::tolower(c); });
+        lowerFuncNames.push_back(fname);
     }
 
     std::size_t rxnIndex = 0;
@@ -558,11 +541,10 @@ void OdeIntegrator::compile() {
         const auto& rateExpr = rxn.getRateExpression();
 
         if (!isFunctional && rateExpr.has_value()) {
-            auto iequals = [](char c1, char c2) {
-                return std::tolower(static_cast<unsigned char>(c1)) == std::tolower(static_cast<unsigned char>(c2));
-            };
+            std::string lowerRawRL = rawRateLaw;
+            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
             std::string timeStr = "time";
-            if (std::search(rawRateLaw.begin(), rawRateLaw.end(), timeStr.begin(), timeStr.end(), iequals) != rawRateLaw.end()) {
+            if (lowerRawRL.find(timeStr) != std::string::npos) {
                 isFunctional = true;
             } else {
                 // Check for observable dependencies
@@ -577,12 +559,12 @@ void OdeIntegrator::compile() {
 
             std::string matchedFuncName;
             if (!isFunctional) {
-                const std::string rawRL = rxn.getRateLaw();
+                std::size_t fIdx = 0;
                 for (const auto& func : model_.getFunctions()) {
-                    const auto& fname = func.getName();
-                    if (hasWordBoundaryMatchCaseInsensitive(rawRL, fname)) {
+                    const auto& lowerFname = lowerFuncNames[fIdx++];
+                    if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
                         isFunctional = true;
-                        matchedFuncName = fname;
+                        matchedFuncName = func.getName();
                         break;
                     }
                 }
@@ -612,8 +594,13 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
+            std::string lowerRawRL = rawRL;
+            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+
+            std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
-                if (hasWordBoundaryMatchCaseInsensitive(rawRL, func.getName())) {
+                const auto& lowerFname = lowerFuncNames[fIdx++];
+                if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
