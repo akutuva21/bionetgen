@@ -1,0 +1,3 @@
+## 2026-07-30 - Remove repetitive string allocations in loops
+**Learning:** In C++, repeatedly using `std::transform` with `std::tolower` inside a nested compilation loop generates high numbers of string heap allocations. Even "pre-computing" lowercase variants creates an $O(N 	imes M)$ overhead if string transformations remain inside conditional rate evaluation.
+**Action:** Replace `std::transform` over strings with inline iterator-based case-insensitive equality checks (e.g. `std::search` with custom lambda) to achieve zero-allocation performance for case-insensitive string parsing inside compilation hot paths.
