@@ -106,6 +106,42 @@ double evaluateRateString(const std::string& rateStr,
 
 // Checks if 'target' exists in 'text' bounded by non-word characters
 // Word characters are defined as alphanumeric or underscore.
+
+// Checks if 'target' exists in 'text' bounded by non-word characters, case-insensitively
+bool hasWordBoundaryMatchI(const std::string& text, const std::string& target) {
+    if (target.empty() || text.length() < target.length()) {
+        return false;
+    }
+
+    auto it = std::search(
+        text.begin(), text.end(),
+        target.begin(), target.end(),
+        [](unsigned char ch1, unsigned char ch2) {
+            return std::tolower(ch1) == std::tolower(ch2);
+        }
+    );
+
+    while (it != text.end()) {
+        std::size_t pos = std::distance(text.begin(), it);
+        bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
+        bool rightBoundary = (pos + target.length() == text.length()) ||
+                             (!std::isalnum(static_cast<unsigned char>(text[pos + target.length()])) && text[pos + target.length()] != '_');
+
+        if (leftBoundary && rightBoundary) {
+            return true;
+        }
+        it = std::search(
+            it + 1, text.end(),
+            target.begin(), target.end(),
+            [](unsigned char ch1, unsigned char ch2) {
+                return std::tolower(ch1) == std::tolower(ch2);
+            }
+        );
+    }
+    return false;
+}
+
+// Checks if 'target' exists in 'text' bounded by non-word characters
 bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
     if (target.empty() || text.length() < target.length()) {
         return false;
@@ -541,10 +577,8 @@ void OdeIntegrator::compile() {
         const auto& rateExpr = rxn.getRateExpression();
 
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
             std::string timeStr = "time";
-            if (lowerRawRL.find(timeStr) != std::string::npos) {
+            if (hasWordBoundaryMatchI(rawRateLaw, timeStr)) {
                 isFunctional = true;
             } else {
                 // Check for observable dependencies
@@ -562,7 +596,7 @@ void OdeIntegrator::compile() {
                 std::size_t fIdx = 0;
                 for (const auto& func : model_.getFunctions()) {
                     const auto& lowerFname = lowerFuncNames[fIdx++];
-                    if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                    if (hasWordBoundaryMatchI(rawRateLaw, lowerFname)) {
                         isFunctional = true;
                         matchedFuncName = func.getName();
                         break;
@@ -593,20 +627,18 @@ void OdeIntegrator::compile() {
         }
 
         if (!crxn.isFunctional) {
-            const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
                 const auto& lowerFname = lowerFuncNames[fIdx++];
-                if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                if (hasWordBoundaryMatchI(rawRateLaw, lowerFname)) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
                     ast::Expression funcExpr2 = ast::Expression::number(0.0);
                     try {
-                        funcExpr2 = parser::parseExpression(rawRL);
+                        funcExpr2 = parser::parseExpression(rawRateLaw);
                     } catch (...) {
                         // Fallback: use bare identifier if parsing fails
                         funcExpr2 = ast::Expression::identifier(func.getName());
