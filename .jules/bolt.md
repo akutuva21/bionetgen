@@ -1,0 +1,3 @@
+## 2024-08-03 - Avoid `std::transform` and lowercase conversions inside loops
+**Learning:** `std::transform` inside a loop for lowercase matching over large lists (e.g. rate expressions vs all functions in a model in `OdeIntegrator::compile()`) creates strings over and over. Furthermore, the `hasWordBoundaryMatch` function copies the string when it doesn't need to and evaluates the boundary using `std::string::find`.
+**Action:** Replace dynamic case transformations with a manual case-insensitive inline match loop `hasWordBoundaryMatchCaseInsensitiveFast` which runs completely over original variables, reducing overhead.

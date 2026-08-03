@@ -106,6 +106,8 @@ double evaluateRateString(const std::string& rateStr,
 
 // Checks if 'target' exists in 'text' bounded by non-word characters
 // Word characters are defined as alphanumeric or underscore.
+// Checks if 'target' exists in 'text' bounded by non-word characters
+// Word characters are defined as alphanumeric or underscore.
 bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
     if (target.empty() || text.length() < target.length()) {
         return false;
@@ -121,6 +123,42 @@ bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
             return true;
         }
         pos = text.find(target, pos + 1);
+    }
+    return false;
+}
+
+// Case-insensitive word boundary match without allocating strings or pre-converting
+// OPTIMIZATION: Replacing allocating lowercase transformations with an inline
+// case-insensitive match loop that avoids per-reaction memory allocations
+bool hasWordBoundaryMatchCaseInsensitiveFast(const std::string& text, const std::string& lowerTarget) {
+    if (lowerTarget.empty() || text.length() < lowerTarget.length()) {
+        return false;
+    }
+
+    std::size_t targetLen = lowerTarget.length();
+    std::size_t textLen = text.length();
+    char firstCharLower = lowerTarget[0];
+
+    for (std::size_t i = 0; i <= textLen - targetLen; ++i) {
+        if (std::tolower(static_cast<unsigned char>(text[i])) == firstCharLower) {
+            bool match = true;
+            for (std::size_t j = 1; j < targetLen; ++j) {
+                if (std::tolower(static_cast<unsigned char>(text[i + j])) != lowerTarget[j]) {
+                    match = false;
+                    break;
+                }
+            }
+
+            if (match) {
+                bool leftBoundary = (i == 0) || (!std::isalnum(static_cast<unsigned char>(text[i - 1])) && text[i - 1] != '_');
+                bool rightBoundary = (i + targetLen == textLen) ||
+                                     (!std::isalnum(static_cast<unsigned char>(text[i + targetLen])) && text[i + targetLen] != '_');
+
+                if (leftBoundary && rightBoundary) {
+                    return true;
+                }
+            }
+        }
     }
     return false;
 }
@@ -562,7 +600,7 @@ void OdeIntegrator::compile() {
                 std::size_t fIdx = 0;
                 for (const auto& func : model_.getFunctions()) {
                     const auto& lowerFname = lowerFuncNames[fIdx++];
-                    if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                    if (hasWordBoundaryMatchCaseInsensitiveFast(rawRateLaw, lowerFname)) {
                         isFunctional = true;
                         matchedFuncName = func.getName();
                         break;
@@ -594,13 +632,11 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
                 const auto& lowerFname = lowerFuncNames[fIdx++];
-                if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                if (hasWordBoundaryMatchCaseInsensitiveFast(rawRL, lowerFname)) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
