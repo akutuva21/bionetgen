@@ -1258,20 +1258,22 @@ std::string MacroBNGModel::num_site(const std::string& re, const std::string& pr
 
     // Extract contents inside parentheses from reactant
     std::string name;
-    std::smatch m;
-    static const std::regex re_paren("[\\(](.*)[\\)]");
-
     std::string ss_re;
-    if (std::regex_search(re, m, re_paren)) {
-        name = m.prefix().str();
-        ss_re = m[1].str();
+
+    auto re_first = re.find('(');
+    auto re_last = re.rfind(')');
+    if (re_first != std::string::npos && re_last != std::string::npos && re_first < re_last) {
+        name = re.substr(0, re_first);
+        ss_re = re.substr(re_first + 1, re_last - re_first - 1);
     }
     auto rem = split(ss_re, ',');
 
     // Extract contents from product
     std::string ss_pr;
-    if (std::regex_search(pr, m, re_paren)) {
-        ss_pr = m[1].str();
+    auto pr_first = pr.find('(');
+    auto pr_last = pr.rfind(')');
+    if (pr_first != std::string::npos && pr_last != std::string::npos && pr_first < pr_last) {
+        ss_pr = pr.substr(pr_first + 1, pr_last - pr_first - 1);
     }
     auto prm = split(ss_pr, ',');
 
@@ -2522,13 +2524,15 @@ void MacroBNGModel::cor_net(const std::string& param_prefix) {
             if (obs.find(";" + egf) != std::string::npos ||
                 endsWith(obs, ";" + egf)) {
                 // Extract group name: Molecules;name;...
-                static const std::regex mol_re("Molecules;(.*?);");
-                std::smatch m;
-                if (std::regex_search(obs, m, mol_re)) {
-                    // egf_tot_[group_name] — Perl assigns @rabm here
-                    // but the value is unused beyond group filtering
-                    egf_tot_[m[1].str()] = {};
-                    break;
+                std::string token = "Molecules;";
+                auto pos = obs.find(token);
+                if (pos != std::string::npos) {
+                    auto next_semi = obs.find(';', pos + token.length());
+                    if (next_semi != std::string::npos) {
+                        std::string group_name = obs.substr(pos + token.length(), next_semi - pos - token.length());
+                        egf_tot_[group_name] = {};
+                        break;
+                    }
                 }
             }
         }
