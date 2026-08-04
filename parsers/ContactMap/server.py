@@ -78,6 +78,8 @@ class BipartiteServer:
     def getTransformations(self,bbnglFile):
         pass
     def _bngl2xml(self,bnglFile):
+        if not all(c.isalnum() or c in '._-' for c in bnglFile):
+            raise ValueError('Invalid filename')
         subprocess.call(['bngdev', bnglFile, '--xml'], shell=False)
         
         
