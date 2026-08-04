@@ -56,24 +56,26 @@ class BipartiteServer:
         counter = next_id()
         print(center,context,product)
         bnglFile = bbnglFile.data
-        with open('temp{0}.bngl'.format(counter),'w') as f:
-            f.write(bnglFile)
-        xmlFile = self._bngl2xml('temp{0}.bngl'.format(counter))
-        createGraph.processBNGL('temp{0}.xml'.format(counter),center,context,product)
-        with open('temp{0}.xml.dot'.format(counter),'rb') as f:
-            dot = f.read()
-        with open('temp{0}.xml.png'.format(counter),'rb') as f:
-            png = f.read()
-        for f in glob.glob('temp{0}*'.format(counter)):
-            try:
-                os.remove(f)
-            except OSError:
-                pass
-        if returnType == 'dot':
-            data = xmlrpclib.Binary(dot)
-        else:
-            data = xmlrpclib.Binary(png)
-        return data
+        try:
+            with open('temp{0}.bngl'.format(counter),'w') as f:
+                f.write(bnglFile)
+            xmlFile = self._bngl2xml('temp{0}.bngl'.format(counter))
+            createGraph.processBNGL('temp{0}.xml'.format(counter),center,context,product)
+            with open('temp{0}.xml.dot'.format(counter),'rb') as f:
+                dot = f.read()
+            with open('temp{0}.xml.png'.format(counter),'rb') as f:
+                png = f.read()
+            if returnType == 'dot':
+                data = xmlrpclib.Binary(dot)
+            else:
+                data = xmlrpclib.Binary(png)
+            return data
+        finally:
+            for f in glob.glob('temp{0}*'.format(counter)):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
 
     def getTransformations(self,bbnglFile):
         pass
