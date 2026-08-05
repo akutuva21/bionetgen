@@ -1258,20 +1258,22 @@ std::string MacroBNGModel::num_site(const std::string& re, const std::string& pr
 
     // Extract contents inside parentheses from reactant
     std::string name;
-    std::smatch m;
-    static const std::regex re_paren("[\\(](.*)[\\)]");
 
     std::string ss_re;
-    if (std::regex_search(re, m, re_paren)) {
-        name = m.prefix().str();
-        ss_re = m[1].str();
+    std::size_t re_open = re.find('(');
+    std::size_t re_close = re.rfind(')');
+    if (re_open != std::string::npos && re_close != std::string::npos && re_close > re_open) {
+        name = re.substr(0, re_open);
+        ss_re = re.substr(re_open + 1, re_close - re_open - 1);
     }
     auto rem = split(ss_re, ',');
 
     // Extract contents from product
     std::string ss_pr;
-    if (std::regex_search(pr, m, re_paren)) {
-        ss_pr = m[1].str();
+    std::size_t pr_open = pr.find('(');
+    std::size_t pr_close = pr.rfind(')');
+    if (pr_open != std::string::npos && pr_close != std::string::npos && pr_close > pr_open) {
+        ss_pr = pr.substr(pr_open + 1, pr_close - pr_open - 1);
     }
     auto prm = split(ss_pr, ',');
 
@@ -2522,13 +2524,14 @@ void MacroBNGModel::cor_net(const std::string& param_prefix) {
             if (obs.find(";" + egf) != std::string::npos ||
                 endsWith(obs, ";" + egf)) {
                 // Extract group name: Molecules;name;...
-                static const std::regex mol_re("Molecules;(.*?);");
-                std::smatch m;
-                if (std::regex_search(obs, m, mol_re)) {
-                    // egf_tot_[group_name] — Perl assigns @rabm here
-                    // but the value is unused beyond group filtering
-                    egf_tot_[m[1].str()] = {};
-                    break;
+                std::size_t mol_pos = obs.find("Molecules;");
+                if (mol_pos != std::string::npos) {
+                    std::size_t name_start = mol_pos + 10;
+                    std::size_t name_end = obs.find(';', name_start);
+                    if (name_end != std::string::npos) {
+                        egf_tot_[obs.substr(name_start, name_end - name_start)] = {};
+                        break;
+                    }
                 }
             }
         }
