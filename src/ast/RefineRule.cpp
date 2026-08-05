@@ -884,11 +884,19 @@ std::unique_ptr<ReactionRule> restrictRule(
     if (products.size() != nProducts) {
         bool deleteMolecules = false;
         for (const auto& mod : rule.getModifiers()) {
-            std::string lower = mod;
-            std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-            if (lower == "deletemolecules") {
-                deleteMolecules = true;
-                break;
+            if (mod.size() == 15) { // "deletemolecules" is 15 chars
+                bool match = true;
+                const char* target = "deletemolecules";
+                for (std::size_t i = 0; i < 15; ++i) {
+                    if (std::tolower(static_cast<unsigned char>(mod[i])) != target[i]) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) {
+                    deleteMolecules = true;
+                    break;
+                }
             }
         }
         if (deleteMolecules && products.size() > nProducts) {
@@ -958,9 +966,10 @@ std::unique_ptr<ReactionRule> restrictRule(
     // Generate child rule name (Perl lines 632-634)
     std::string childName = rule.getRuleName() + "_v1";
     // Remove "(reverse)" -> "_rev"
-    std::string::size_type revPos;
-    while ((revPos = childName.find("(reverse)")) != std::string::npos) {
+    std::string::size_type revPos = 0;
+    while ((revPos = childName.find("(reverse)", revPos)) != std::string::npos) {
         childName.replace(revPos, 9, "_rev");
+        revPos += 4; // "_rev".length()
     }
 
     // Build string representations
