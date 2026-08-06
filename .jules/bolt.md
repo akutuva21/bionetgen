@@ -1,0 +1,4 @@
+## 2024-08-06 - Avoid std::transform and std::regex in loops for C++
+
+**Learning:** In C++, `std::transform` with `std::tolower` inside a tight loop is slow because it causes overhead compared to manual loop iteration. More importantly, using `std::regex` or `std::regex_search` repeatedly is very slow. Creating regex variables in functions that are called repeatedly (like parsing networks or models) adds severe compilation/matching overhead. Pre-compiled regex objects still incur overhead due to heap allocations.
+**Action:** When a case-insensitive operation or pattern extraction is needed inside performance-critical paths, replace `std::transform` with manual `for` loops that mutate characters. Replace `std::regex` matching with fast string methods like `std::string::find` and manual substring traversal.
