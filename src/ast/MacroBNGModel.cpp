@@ -1258,20 +1258,25 @@ std::string MacroBNGModel::num_site(const std::string& re, const std::string& pr
 
     // Extract contents inside parentheses from reactant
     std::string name;
-    std::smatch m;
-    static const std::regex re_paren("[\\(](.*)[\\)]");
-
     std::string ss_re;
-    if (std::regex_search(re, m, re_paren)) {
-        name = m.prefix().str();
-        ss_re = m[1].str();
+    std::size_t open_paren_re = re.find('(');
+    if (open_paren_re != std::string::npos) {
+        std::size_t close_paren_re = re.rfind(')');
+        if (close_paren_re != std::string::npos && close_paren_re > open_paren_re) {
+            name = re.substr(0, open_paren_re);
+            ss_re = re.substr(open_paren_re + 1, close_paren_re - open_paren_re - 1);
+        }
     }
     auto rem = split(ss_re, ',');
 
     // Extract contents from product
     std::string ss_pr;
-    if (std::regex_search(pr, m, re_paren)) {
-        ss_pr = m[1].str();
+    std::size_t open_paren_pr = pr.find('(');
+    if (open_paren_pr != std::string::npos) {
+        std::size_t close_paren_pr = pr.rfind(')');
+        if (close_paren_pr != std::string::npos && close_paren_pr > open_paren_pr) {
+            ss_pr = pr.substr(open_paren_pr + 1, close_paren_pr - open_paren_pr - 1);
+        }
     }
     auto prm = split(ss_pr, ',');
 

@@ -204,7 +204,9 @@ void OdeIntegrator::compile() {
     std::vector<std::string> lowerFuncNames;
     for (const auto& func : model_.getFunctions()) {
         std::string fname = func.getName();
-        std::transform(fname.begin(), fname.end(), fname.begin(), [](unsigned char c) { return std::tolower(c); });
+        for (char& c : fname) {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
         lowerFuncNames.push_back(fname);
     }
 
@@ -542,7 +544,9 @@ void OdeIntegrator::compile() {
 
         if (!isFunctional && rateExpr.has_value()) {
             std::string lowerRawRL = rawRateLaw;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            for (char& c : lowerRawRL) {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
             std::string timeStr = "time";
             if (lowerRawRL.find(timeStr) != std::string::npos) {
                 isFunctional = true;
@@ -595,7 +599,9 @@ void OdeIntegrator::compile() {
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
             std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            for (char& c : lowerRawRL) {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {

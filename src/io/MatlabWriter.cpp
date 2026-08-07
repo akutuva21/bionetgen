@@ -19,9 +19,9 @@ namespace bng::io {
 
 std::string MatlabWriter::makeMatlabFunctionName(const std::string& modelName) {
     std::string name = modelName;
-    std::transform(name.begin(), name.end(), name.begin(), [](char c) {
-        return std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
-    });
+    for (char& c : name) {
+        c = std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
+    }
     if (!name.empty() && std::isdigit(static_cast<unsigned char>(name[0]))) {
         name = "model_" + name;
     }

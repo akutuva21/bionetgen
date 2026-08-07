@@ -79,9 +79,9 @@ bool parseBooleanLike(std::string text) {
     if (text.size() >= 2 && ((text.front() == '"' && text.back() == '"') || (text.front() == '\'' && text.back() == '\''))) {
         text = text.substr(1, text.size() - 2);
     }
-    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
+    for (char& c : text) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
     return text == "1" || text == "true" || text == "yes" || text == "on";
 }
 
