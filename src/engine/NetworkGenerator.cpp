@@ -79,10 +79,13 @@ bool parseBooleanLike(std::string text) {
     if (text.size() >= 2 && ((text.front() == '"' && text.back() == '"') || (text.front() == '\'' && text.back() == '\''))) {
         text = text.substr(1, text.size() - 2);
     }
-    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return text == "1" || text == "true" || text == "yes" || text == "on";
+    auto equalsIgnoreCase = [](const std::string& a, const std::string& b) {
+        if (a.size() != b.size()) return false;
+        return std::equal(a.begin(), a.end(), b.begin(), [](unsigned char c1, unsigned char c2) {
+            return std::tolower(c1) == c2; // b is already lowercase string literal
+        });
+    };
+    return text == "1" || equalsIgnoreCase(text, "true") || equalsIgnoreCase(text, "yes") || equalsIgnoreCase(text, "on");
 }
 
 std::optional<std::size_t> parseMaxAgg(const ast::Model& model) {
