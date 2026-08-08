@@ -19,7 +19,8 @@ try:
 except ImportError:
     pass
 
-import threading
+import tempfile
+import shutil
 import subprocess
 import createGraph
 import pexpect
@@ -27,7 +28,6 @@ try:
     import xmlrpclib  # nosec
 except ImportError:
     import xmlrpc.client as xmlrpclib  # nosec
-import glob
 import os
 # Restrict to a particular path.
 class RequestHandler(SimpleXMLRPCRequestHandler):
@@ -37,38 +37,28 @@ class RequestHandler(SimpleXMLRPCRequestHandler):
 
 
 
-iid = 1
-iid_lock = threading.Lock()
-
-def next_id():
-    global iid
-    with iid_lock:
-        result = iid
-        iid += 1
-    return result   
-
-
 class BipartiteServer:
     
     def __init__(self):
         pass
     def bipartite(self, bbnglFile,returnType,center,context,product):
-        counter = next_id()
         print(center,context,product)
         bnglFile = bbnglFile.data
-        with open('temp{0}.bngl'.format(counter),'w') as f:
-            f.write(bnglFile)
-        xmlFile = self._bngl2xml('temp{0}.bngl'.format(counter))
-        createGraph.processBNGL('temp{0}.xml'.format(counter),center,context,product)
-        with open('temp{0}.xml.dot'.format(counter),'rb') as f:
-            dot = f.read()
-        with open('temp{0}.xml.png'.format(counter),'rb') as f:
-            png = f.read()
-        for f in glob.glob('temp{0}*'.format(counter)):
-            try:
-                os.remove(f)
-            except OSError:
-                pass
+        temp_dir = tempfile.mkdtemp()
+        try:
+            temp_bngl = os.path.join(temp_dir, 'temp.bngl')
+            with open(temp_bngl,'w') as f:
+                f.write(bnglFile)
+            self._bngl2xml(temp_bngl)
+            temp_xml = os.path.join(temp_dir, 'temp.xml')
+            createGraph.processBNGL(temp_xml,center,context,product)
+            with open(temp_xml + '.dot','rb') as f:
+                dot = f.read()
+            with open(temp_xml + '.png','rb') as f:
+                png = f.read()
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
         if returnType == 'dot':
             data = xmlrpclib.Binary(dot)
         else:
