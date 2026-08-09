@@ -1741,18 +1741,44 @@ void NetWriter::write(std::ostream& out, ast::Model& model, const engine::Genera
 
     out << "begin groups\n";
     std::size_t groupIndex = 1;
+
+    struct ParsedPatternInfo {
+        const BNGcore::PatternGraph* graph;
+        std::string compartment;
+        bool hasMoleculeCompartment;
+    };
+
     for (const auto& observable : model.getObservables()) {
         out << "    " << groupIndex++ << " " << observable.getName() << " ";
         bool firstEntry = true;
+
+        std::vector<ParsedPatternInfo> parsedPatterns;
+        parsedPatterns.reserve(observable.getPatterns().size());
+
+        for (const auto& patternText : observable.getPatterns()) {
+            auto cacheIt = parsedObservableCache.find(patternText);
+            if (cacheIt == parsedObservableCache.end()) {
+                cacheIt = parsedObservableCache.emplace(patternText, parseObservablePatternWithCompartment(patternText, model)).first;
+            }
+            const auto& pattern = cacheIt->second.first;
+            const auto& patternCompartment = cacheIt->second.second;
+
+            bool patternHasMoleculeCompartment = false;
+            for (auto it = pattern.begin(); it != pattern.end(); ++it) {
+                if (!(*it)->get_compartment().empty()) {
+                    patternHasMoleculeCompartment = true;
+                    break;
+                }
+            }
+
+            parsedPatterns.push_back({&pattern, patternCompartment, patternHasMoleculeCompartment});
+        }
+
         for (std::size_t speciesIndex = 0; speciesIndex < network.species.size(); ++speciesIndex) {
             std::size_t weight = 0;
-            for (const auto& patternText : observable.getPatterns()) {
-                auto cacheIt = parsedObservableCache.find(patternText);
-                if (cacheIt == parsedObservableCache.end()) {
-                    cacheIt = parsedObservableCache.emplace(patternText, parseObservablePatternWithCompartment(patternText, model)).first;
-                }
-                auto& pattern = cacheIt->second.first;
-                auto& patternCompartment = cacheIt->second.second;
+            for (const auto& ppi : parsedPatterns) {
+                const auto& pattern = *ppi.graph;
+                const auto& patternCompartment = ppi.compartment;
 
                 // Compartment matching strategy:
                 // 1. Molecule-level compartment (e.g., SARM()@Cyt) -- compartment is
@@ -1760,15 +1786,7 @@ void NetWriter::write(std::ostream& out, ast::Model& model, const engine::Genera
                 //    Node::operator== handles it. No species-level filter needed.
                 // 2. Species-level prefix compartment (e.g., @PM:L) -- no compartment
                 //    on pattern molecule nodes. Need species-level filter.
-                // Detect which case by checking if any pattern molecule node has a compartment.
-                bool patternHasMoleculeCompartment = false;
-                for (auto it = pattern.begin(); it != pattern.end(); ++it) {
-                    if (!(*it)->get_compartment().empty()) {
-                        patternHasMoleculeCompartment = true;
-                        break;
-                    }
-                }
-                if (!patternCompartment.empty() && !patternHasMoleculeCompartment) {
+                if (!patternCompartment.empty() && !ppi.hasMoleculeCompartment) {
                     // Species-level prefix compartment -- filter at species level
                     const auto& speciesCompartment = network.species.get(speciesIndex).getCompartment();
                     if (speciesCompartment != patternCompartment) {

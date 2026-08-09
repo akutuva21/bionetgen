@@ -809,151 +809,162 @@ void OdeIntegrator::compileGroups() {
     };
     std::unordered_map<std::string, CachedPattern> parsedObservableCache;
 
+    struct ParsedPatternInfo {
+        const BNGcore::PatternGraph* graph;
+        std::string compartment;
+        std::string quantOp;
+        int quantThreshold;
+        bool hasQuantifier;
+    };
+
     for (const auto& observable : model_.getObservables()) {
         CompiledGroup group;
         group.name = observable.getName();
+
+        std::vector<ParsedPatternInfo> parsedPatterns;
+        parsedPatterns.reserve(observable.getPatterns().size());
+
+        for (const auto& patternText : observable.getPatterns()) {
+            try {
+                // Extract optional quantifier (e.g., "> 2", "== 1", "<= 3")
+                std::string cleanPattern = patternText;
+                std::string quantOp;
+                int quantThreshold = 0;
+                bool hasQuantifier = false;
+
+                // Look for trailing quantifier: operators >=, <=, ==, !=, >, <
+                static const std::vector<std::string> ops = {">=", "<=", "==", "!=", ">", "<"};
+                for (const auto& op : ops) {
+                    auto pos = cleanPattern.rfind(op);
+                    if (pos != std::string::npos && pos > 0) {
+                        std::string after = cleanPattern.substr(pos + op.size());
+                        // Trim whitespace
+                        after.erase(0, after.find_first_not_of(" 	"));
+                        after.erase(after.find_last_not_of(" 	") + 1);
+                        // Check if remainder is an integer
+                        bool isInt = !after.empty();
+                        for (char c : after) {
+                            if (!std::isdigit(static_cast<unsigned char>(c))) { isInt = false; break; }
+                        }
+                        if (isInt) {
+                            std::string before = cleanPattern.substr(0, pos);
+                            before.erase(before.find_last_not_of(" 	") + 1);
+                            if (!before.empty() && (before.back() == ')' || std::isalnum(static_cast<unsigned char>(before.back())) || before.back() == '_')) {
+                                quantOp = op;
+                                quantThreshold = std::stoi(after);
+                                hasQuantifier = true;
+                                cleanPattern = before;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                auto cacheIt = parsedObservableCache.find(cleanPattern);
+                if (cacheIt == parsedObservableCache.end()) {
+                    antlr4::ANTLRInputStream input(cleanPattern);
+                    BNGLexer lexer(&input);
+                    antlr4::CommonTokenStream tokens(&lexer);
+                    BNGParser parser(&tokens);
+                    auto* species = parser.species_def();
+
+                    if (parser.getNumberOfSyntaxErrors() != 0) {
+                        throw std::runtime_error("Could not parse observable pattern: " + patternText);
+                    }
+
+                    CachedPattern cp;
+                    cp.graph = bng::parser::buildPatternGraph(species, mutableModel, false);
+                    cp.compartment = bng::parser::extractSpeciesCompartment(species);
+                    cacheIt = parsedObservableCache.emplace(cleanPattern, std::move(cp)).first;
+                }
+
+                parsedPatterns.push_back({&cacheIt->second.graph, cacheIt->second.compartment, quantOp, quantThreshold, hasQuantifier});
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Failed to compile observable " + observable.getName() +
+                                       " pattern '" + patternText + "': " + e.what());
+            }
+        }
 
         // Match each pattern against all species
         for (std::size_t speciesIndex = 0; speciesIndex < network_.species.size(); ++speciesIndex) {
             std::size_t weight = 0;
 
-            for (const auto& patternText : observable.getPatterns()) {
-                // Parse the observable pattern
-                try {
-                    // Extract optional quantifier (e.g., "> 2", "== 1", "<= 3")
-                    std::string cleanPattern = patternText;
-                    std::string quantOp;
-                    int quantThreshold = 0;
-                    bool hasQuantifier = false;
+            for (const auto& ppi : parsedPatterns) {
+                const auto& pattern = *ppi.graph;
 
-                    // Look for trailing quantifier: operators >=, <=, ==, !=, >, <
-                    // Pattern: species_def WS* (OP WS* INT)
-                    static const std::vector<std::string> ops = {">=", "<=", "==", "!=", ">", "<"};
-                    for (const auto& op : ops) {
-                        auto pos = cleanPattern.rfind(op);
-                        if (pos != std::string::npos && pos > 0) {
-                            std::string after = cleanPattern.substr(pos + op.size());
-                            // Trim whitespace
-                            after.erase(0, after.find_first_not_of(" \t"));
-                            after.erase(after.find_last_not_of(" \t") + 1);
-                            // Check if remainder is an integer
-                            bool isInt = !after.empty();
-                            for (char c : after) {
-                                if (!std::isdigit(static_cast<unsigned char>(c))) { isInt = false; break; }
-                            }
-                            if (isInt) {
-                                // Verify the character before the operator is whitespace or close-paren
-                                // to avoid matching bond syntax like "!1"
-                                std::string before = cleanPattern.substr(0, pos);
-                                before.erase(before.find_last_not_of(" \t") + 1);
-                                if (!before.empty() && (before.back() == ')' || std::isalnum(static_cast<unsigned char>(before.back())) || before.back() == '_')) {
-                                    quantOp = op;
-                                    quantThreshold = std::stoi(after);
-                                    hasQuantifier = true;
-                                    cleanPattern = before;
-                                    break;
-                                }
-                            }
+                // Compartment matching strategy:
+                // 1. Molecule-level compartment (e.g., SARM()@Cyt) -- handled
+                //    by Ullmann matcher's Node::operator== compartment check.
+                // 2. Species-level prefix compartment (e.g., @PM:L) -- no
+                //    compartment on pattern nodes; filter at species level.
+                const auto& patternCompartment = ppi.compartment;
+                if (!patternCompartment.empty()) {
+                    bool patternHasMoleculeCompartment = false;
+                    for (auto it = pattern.begin(); it != pattern.end(); ++it) {
+                        if (!(*it)->get_compartment().empty()) {
+                            patternHasMoleculeCompartment = true;
+                            break;
                         }
                     }
-
-                    auto cacheIt = parsedObservableCache.find(cleanPattern);
-                    if (cacheIt == parsedObservableCache.end()) {
-                        antlr4::ANTLRInputStream input(cleanPattern);
-                        BNGLexer lexer(&input);
-                        antlr4::CommonTokenStream tokens(&lexer);
-                        BNGParser parser(&tokens);
-                        auto* species = parser.species_def();
-
-                        if (parser.getNumberOfSyntaxErrors() != 0) {
-                            throw std::runtime_error("Could not parse observable pattern: " + patternText);
-                        }
-
-                        CachedPattern cp;
-                        cp.graph = bng::parser::buildPatternGraph(species, mutableModel, false);
-                        cp.compartment = bng::parser::extractSpeciesCompartment(species);
-                        cacheIt = parsedObservableCache.emplace(cleanPattern, std::move(cp)).first;
-                    }
-
-                    const auto& pattern = cacheIt->second.graph;
-
-                    // Compartment matching strategy:
-                    // 1. Molecule-level compartment (e.g., SARM()@Cyt) -- handled
-                    //    by Ullmann matcher's Node::operator== compartment check.
-                    // 2. Species-level prefix compartment (e.g., @PM:L) -- no
-                    //    compartment on pattern nodes; filter at species level.
-                    const auto& patternCompartment = cacheIt->second.compartment;
-                    if (!patternCompartment.empty()) {
-                        bool patternHasMoleculeCompartment = false;
-                        for (auto it = pattern.begin(); it != pattern.end(); ++it) {
-                            if (!(*it)->get_compartment().empty()) {
-                                patternHasMoleculeCompartment = true;
-                                break;
-                            }
-                        }
-                        if (!patternHasMoleculeCompartment) {
-                            const auto& speciesCompartment = network_.species.get(speciesIndex).getCompartment();
-                            if (speciesCompartment != patternCompartment) {
-                                continue;  // Skip -- species-level compartment mismatch
-                            }
+                    if (!patternHasMoleculeCompartment) {
+                        const auto& speciesCompartment = network_.species.get(speciesIndex).getCompartment();
+                        if (speciesCompartment != patternCompartment) {
+                            continue;  // Skip -- species-level compartment mismatch
                         }
                     }
-
-                    // Count matches (with node-level state and structure validation)
-                    const auto& targetGraph = network_.species.get(speciesIndex).getSpeciesGraph().getGraph();
-                    BNGcore::UllmannSGIso matcher(pattern, targetGraph);
-                    BNGcore::List<BNGcore::Map> maps;
-                    matcher.find_maps(maps);
-
-                    // Post-filter: verify each map respects node states, compartments,
-                    // and structural roles (molecule vs component vs bond nodes).
-                    // The Ullmann SGIso matches by type_name which may conflate molecule
-                    // types and component types that share the same name (e.g., CDKN1A).
-                    std::size_t matchCount = 0;
-                    for (auto mapIt = maps.begin(); mapIt != maps.end(); ++mapIt) {
-                        bool valid = true;
-                        for (auto pnIt = pattern.begin(); pnIt != pattern.end(); ++pnIt) {
-                            auto* target = mapIt->mapf(*pnIt);
-                            if (!target) { valid = false; break; }
-                            // Check state compatibility
-                            if (!((*pnIt)->get_state() == target->get_state())) { valid = false; break; }
-                            // Check structural role: molecule nodes must map to molecule nodes
-                            bool patternIsMol = ((*pnIt)->in_degree() == 0);
-                            bool targetIsMol = (target->in_degree() == 0);
-                            if (patternIsMol != targetIsMol) { valid = false; break; }
-                            // Check per-molecule compartment
-                            if (patternIsMol) {
-                                const auto& pc = (*pnIt)->get_compartment();
-                                if (!pc.empty() && target->get_compartment() != pc) { valid = false; break; }
-                            }
-                        }
-                        if (valid) ++matchCount;
-                    }
-
-                    // Apply quantifier filter if present
-                    if (hasQuantifier) {
-                        bool passes = false;
-                        int mc = static_cast<int>(matchCount);
-                        if (quantOp == ">") passes = mc > quantThreshold;
-                        else if (quantOp == "<") passes = mc < quantThreshold;
-                        else if (quantOp == ">=") passes = mc >= quantThreshold;
-                        else if (quantOp == "<=") passes = mc <= quantThreshold;
-                        else if (quantOp == "==") passes = mc == quantThreshold;
-                        else if (quantOp == "!=") passes = mc != quantThreshold;
-                        matchCount = passes ? matchCount : 0;
-                    }
-
-                    // For "Species" observables, each pattern contributes 0 or 1
-                    // (presence/absence). The total weight is the number of
-                    // patterns that match, NOT clamped to 1 across all patterns.
-                    if (observable.getType() == "Species" && matchCount > 0) {
-                        matchCount = 1;
-                    }
-                    weight += matchCount;
-                } catch (const std::exception& e) {
-                    throw std::runtime_error("Failed to compile observable " + observable.getName() +
-                                           " pattern '" + patternText + "': " + e.what());
                 }
+
+                // Count matches (with node-level state and structure validation)
+                const auto& targetGraph = network_.species.get(speciesIndex).getSpeciesGraph().getGraph();
+                BNGcore::UllmannSGIso matcher(pattern, targetGraph);
+                BNGcore::List<BNGcore::Map> maps;
+                matcher.find_maps(maps);
+
+                // Post-filter: verify each map respects node states, compartments,
+                // and structural roles (molecule vs component vs bond nodes).
+                // The Ullmann SGIso matches by type_name which may conflate molecule
+                // types and component types that share the same name (e.g., CDKN1A).
+                std::size_t matchCount = 0;
+                for (auto mapIt = maps.begin(); mapIt != maps.end(); ++mapIt) {
+                    bool valid = true;
+                    for (auto pnIt = pattern.begin(); pnIt != pattern.end(); ++pnIt) {
+                        auto* target = mapIt->mapf(*pnIt);
+                        if (!target) { valid = false; break; }
+                        // Check state compatibility
+                        if (!((*pnIt)->get_state() == target->get_state())) { valid = false; break; }
+                        // Check structural role: molecule nodes must map to molecule nodes
+                        bool patternIsMol = ((*pnIt)->in_degree() == 0);
+                        bool targetIsMol = (target->in_degree() == 0);
+                        if (patternIsMol != targetIsMol) { valid = false; break; }
+                        // Check per-molecule compartment
+                        if (patternIsMol) {
+                            const auto& pc = (*pnIt)->get_compartment();
+                            if (!pc.empty() && target->get_compartment() != pc) { valid = false; break; }
+                        }
+                    }
+                    if (valid) ++matchCount;
+                }
+
+                // Apply quantifier filter if present
+                if (ppi.hasQuantifier) {
+                    bool passes = false;
+                    int mc = static_cast<int>(matchCount);
+                    if (ppi.quantOp == ">") passes = mc > ppi.quantThreshold;
+                    else if (ppi.quantOp == "<") passes = mc < ppi.quantThreshold;
+                    else if (ppi.quantOp == ">=") passes = mc >= ppi.quantThreshold;
+                    else if (ppi.quantOp == "<=") passes = mc <= ppi.quantThreshold;
+                    else if (ppi.quantOp == "==") passes = mc == ppi.quantThreshold;
+                    else if (ppi.quantOp == "!=") passes = mc != ppi.quantThreshold;
+                    matchCount = passes ? matchCount : 0;
+                }
+
+                // For "Species" observables, each pattern contributes 0 or 1
+                // (presence/absence). The total weight is the number of
+                // patterns that match, NOT clamped to 1 across all patterns.
+                if (observable.getType() == "Species" && matchCount > 0) {
+                    matchCount = 1;
+                }
+                weight += matchCount;
             }
 
             if (weight > 0) {
