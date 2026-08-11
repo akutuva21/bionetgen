@@ -1,0 +1,5 @@
+
+## 2024-05-18 - Fix insecure predictable temporary files in BipartiteServer
+**Vulnerability:** In `parsers/ContactMap/server.py`, the `bipartite` XML-RPC handler dynamically generated file names (`temp{counter}.bngl`) and created them in the current working directory, before iterating over a glob and manually removing them via `os.remove`. This predictability introduces severe race condition vulnerabilities (where another process or attacker could predict and modify the temporary file), directory pollution if removal fails, and potentially arbitrary file deletion/symlink attacks in constrained environments.
+**Learning:** Hardcoded, predictably incrementing IDs for temporary filenames are insecure, especially for file generation triggered by remote network requests (RPC).
+**Prevention:** Always use secure temporary file creation routines (e.g., `tempfile.mkdtemp()` or `tempfile.NamedTemporaryFile()` in Python). Additionally, encapsulate the logic in a `try...finally` block, executing `shutil.rmtree()` on the root temporary directory to guarantee deletion even if errors or early exits occur, and use `ignore_errors=True` to safely suppress deletion failures.
