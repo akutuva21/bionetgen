@@ -540,9 +540,17 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
+        // ⚡ Bolt: Conditionally pre-compute lowercased rate law string to avoid O(N)
+        // string allocation and std::transform overhead in tight compilation loops when
+        // the string is either unused or already computed.
+        std::string lowerRawRL;
+        bool lowerRawRLPopulated = false;
+
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
+            lowerRawRL = rawRateLaw;
             std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            lowerRawRLPopulated = true;
+
             std::string timeStr = "time";
             if (lowerRawRL.find(timeStr) != std::string::npos) {
                 isFunctional = true;
@@ -593,9 +601,11 @@ void OdeIntegrator::compile() {
         }
 
         if (!crxn.isFunctional) {
-            const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (!lowerRawRLPopulated) {
+                lowerRawRL = rawRateLaw;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+                lowerRawRLPopulated = true;
+            }
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
@@ -606,7 +616,7 @@ void OdeIntegrator::compile() {
                     // compound expressions like "k * funcName()" are preserved.
                     ast::Expression funcExpr2 = ast::Expression::number(0.0);
                     try {
-                        funcExpr2 = parser::parseExpression(rawRL);
+                        funcExpr2 = parser::parseExpression(rawRateLaw);
                     } catch (...) {
                         // Fallback: use bare identifier if parsing fails
                         funcExpr2 = ast::Expression::identifier(func.getName());

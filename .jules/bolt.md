@@ -1,0 +1,3 @@
+## 2023-10-24 - Optimize string lowercasing in tight loops
+**Learning:** In C++, unconditionally creating and transforming strings (e.g. `std::transform` with `std::tolower`) inside loop branches that may not use them causes severe performance regressions due to memory allocations.
+**Action:** Pre-compute transformed strings conditionally inside the relevant guarding condition and share them across multiple conditional blocks within the loop. For simple string equality checks, use an O(1) length check followed by an O(N) case-insensitive character comparison instead of allocating a transformed string.

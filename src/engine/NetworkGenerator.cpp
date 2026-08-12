@@ -7,6 +7,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "ast/ReactionRule.hpp"
 #include "io/NetWriter.hpp"
@@ -79,10 +80,22 @@ bool parseBooleanLike(std::string text) {
     if (text.size() >= 2 && ((text.front() == '"' && text.back() == '"') || (text.front() == '\'' && text.back() == '\''))) {
         text = text.substr(1, text.size() - 2);
     }
-    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return text == "1" || text == "true" || text == "yes" || text == "on";
+
+    // ⚡ Bolt: Inline case-insensitive string equality check to avoid O(N) allocation
+    // overhead from std::transform. Using std::string_view for the second argument
+    // prevents implicit std::string allocations for literals. Early O(1) length check
+    // fast-fails on mismatch.
+    auto caseInsensitiveEqual = [](const std::string& a, std::string_view b) {
+        if (a.size() != b.size()) return false;
+        return std::equal(a.begin(), a.end(), b.begin(), [](char c1, char c2) {
+            return std::tolower(static_cast<unsigned char>(c1)) == std::tolower(static_cast<unsigned char>(c2));
+        });
+    };
+
+    return caseInsensitiveEqual(text, "1") ||
+           caseInsensitiveEqual(text, "true") ||
+           caseInsensitiveEqual(text, "yes") ||
+           caseInsensitiveEqual(text, "on");
 }
 
 std::optional<std::size_t> parseMaxAgg(const ast::Model& model) {
