@@ -55,12 +55,14 @@ jobs:
     steps:
       - name: Checkout repo # and submodules
         uses: actions/checkout@v4
+        env:
+          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
         with:
           submodules: recursive
       # Windows setup
       - name: Set up Cygwin
         if: startsWith(matrix.config.os, 'windows') 
-        uses: egor-tensin/setup-cygwin@v4
+        uses: cygwin/cygwin-install-action@master
         with:
           packages: cmake gcc-g++ autoconf automake libtool dos2unix pkg-config make
 
