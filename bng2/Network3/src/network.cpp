@@ -2455,7 +2455,7 @@ static double rxn_rate(Rxn* rxn, double* X, int discrete) {
 	int ig, /*i1, i2,*/n_denom;
 	int q;
 	double *param, x, xn, kn;
-	double St, Et, kcat, Km, S, b;
+	double St, Et, kcat, Km, S;
 
 	/* Don't calculate rate of null reactions */
 	if (!rxn)
@@ -2504,8 +2504,7 @@ static double rxn_rate(Rxn* rxn, double* X, int discrete) {
 		for (q = 1, Et = 0; q < rxn->n_reactants; ++q) {
 			Et += X[rxn->r_index[q]];
 		}
-		b = St - Km - Et;
-		S = 0.5 * (b + sqrt(b * b + 4.0 * St * Km));
+		S = Util::mm_free_substrate(St, Km, Et);
 		rate = rxn->stat_factor * kcat * Et * S / (Km + S);
 		break;
 
@@ -2657,7 +2656,7 @@ static double rxn_rate_scaled(Rxn* rxn, double* X, int discrete, double & iScali
 	int ig, /*i1, i2,*/n_denom;
 	int q, i;
 	double *param, x, xn, kn;
-	double St, Et, kcat, Km, S, b;
+	double St, Et, kcat, Km, S;
 	double scalingExp = 0.0;
 	double tempPop = 1.0;
 	double upperBound = 2 * poplevel;
@@ -2775,8 +2774,7 @@ static double rxn_rate_scaled(Rxn* rxn, double* X, int discrete, double & iScali
 			iScaling = 1.0;
 		}
 
-		b = (St - Km - Et) / iScaling;
-		S = 0.5 * (b + sqrt(b * b + 4.0 * St / iScaling * Km / iScaling));
+		S = Util::mm_free_substrate(St / iScaling, Km / iScaling, Et / iScaling);
 		rate = rxn->stat_factor * kcat * Et / iScaling * S / (Km / iScaling + S);
 		/* NOTE: the scaling method for MM equation is not 100% accurate, more nonlinearity brings more error */
 		break;

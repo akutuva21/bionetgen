@@ -20,6 +20,20 @@ void Util::remove_whitespace(string& s){
 	while (s.at(s.size()-1) == ' ' || s.at(s.size()-1) == '\t') s.erase(s.size()-1,1);
 }
 
+// Free (unbound) substrate concentration of the quasi-steady-state Michaelis-Menten
+// rate law: the non-negative root of S^2 - b*S - St*Km = 0, with b = St - Km - Et.
+// The textbook form 0.5*(b + sqrt(b*b + 4*St*Km)) cancels catastrophically when b < 0,
+// and rounds to exactly zero once 4*St*Km drops below about 1e-16*b*b, which silently
+// stops the reaction when Km is small and the enzyme is in excess. The roots multiply
+// to -St*Km, so the b < 0 case can be written with a sum of like-signed quantities.
+double Util::mm_free_substrate(double St, double Km, double Et, double* sqrt_disc){
+	double b = St - Km - Et;
+	double q = sqrt(b*b + 4.0*St*Km);
+	if (sqrt_disc) *sqrt_disc = q;
+	// q >= |b|, so q - b > 0 whenever b < 0
+	return (b >= 0.0) ? 0.5*(b + q) : 2.0*St*Km/(q - b);
+}
+
 double Util::Mratio(double a, double b, double z){
 	// Original Fortran code written by William Hlavacek (2018)
 	// Tranlsated to Python and then C++ by Leonard A. Harris (2019)

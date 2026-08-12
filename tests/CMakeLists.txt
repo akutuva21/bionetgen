@@ -310,3 +310,14 @@ target_include_directories(test_ssc_writer PRIVATE
 )
 target_link_libraries(test_ssc_writer PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_core antlr4_static)
 catch_discover_tests(test_ssc_writer)
+
+add_executable(test_michaelis_menten
+    test_michaelis_menten.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bng2/Network3/src/util/misc.cpp
+)
+target_include_directories(test_michaelis_menten PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bng2/Network3/src
+)
+target_link_libraries(test_michaelis_menten PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_ast)
+catch_discover_tests(test_michaelis_menten)

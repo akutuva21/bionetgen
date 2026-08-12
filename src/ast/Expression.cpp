@@ -206,7 +206,7 @@ double Expression::evaluate(const std::function<double(const std::string&)>& res
             return Vmax * S / (Km + S);
         }
         // MM(kcat, Km, St, Et) -> self-consistent Michaelis-Menten (BNG2 parity)
-        // Computes free substrate via quadratic: S = 0.5*(b + sqrt(b^2 + 4*St*Km))
+        // Computes free substrate as the non-negative root of S^2 - b*S - St*Km = 0,
         // where b = St - Km - Et, then rate = kcat * Et * S / (Km + S)
         if (text_ == "MM" || text_ == "mm") {
             if (children_.size() == 4) {
@@ -215,7 +215,11 @@ double Expression::evaluate(const std::function<double(const std::string&)>& res
                 const double St   = evalArg(2);  // total substrate
                 const double Et   = evalArg(3);  // total enzyme
                 const double b = St - Km - Et;
-                const double S = 0.5 * (b + std::sqrt(b * b + 4.0 * St * Km));
+                const double q = std::sqrt(b * b + 4.0 * St * Km);
+                // 0.5*(b + q) cancels catastrophically for b < 0 (enzyme in excess with
+                // small Km), losing all significant digits. The roots multiply to -St*Km,
+                // so that case is rewritten as a sum of like-signed quantities.
+                const double S = (b >= 0.0) ? 0.5 * (b + q) : 2.0 * St * Km / (q - b);
                 return kcat * Et * S / (Km + S);
             }
             // Fallback for 3-arg form (legacy): Vmax * S / (Km + S)
