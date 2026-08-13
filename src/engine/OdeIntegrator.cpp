@@ -540,32 +540,37 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
+        std::string lowerRawRL;
+        bool hasLowerRawRL = false;
+
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
-            std::string timeStr = "time";
-            if (lowerRawRL.find(timeStr) != std::string::npos) {
-                isFunctional = true;
-            } else {
-                // Check for observable dependencies
-                auto deps = rateExpr->getDependencies();
-                for (const auto& dep : deps) {
-                    if (!model_.getParameters().contains(dep)) {
-                        isFunctional = true;
-                        break;
-                    }
+            // Check for observable dependencies
+            auto deps = rateExpr->getDependencies();
+            for (const auto& dep : deps) {
+                if (!model_.getParameters().contains(dep)) {
+                    isFunctional = true;
+                    break;
                 }
             }
 
             std::string matchedFuncName;
             if (!isFunctional) {
-                std::size_t fIdx = 0;
-                for (const auto& func : model_.getFunctions()) {
-                    const auto& lowerFname = lowerFuncNames[fIdx++];
-                    if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
-                        isFunctional = true;
-                        matchedFuncName = func.getName();
-                        break;
+                lowerRawRL = rawRateLaw;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+                hasLowerRawRL = true;
+
+                std::string timeStr = "time";
+                if (lowerRawRL.find(timeStr) != std::string::npos) {
+                    isFunctional = true;
+                } else {
+                    std::size_t fIdx = 0;
+                    for (const auto& func : model_.getFunctions()) {
+                        const auto& lowerFname = lowerFuncNames[fIdx++];
+                        if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                            isFunctional = true;
+                            matchedFuncName = func.getName();
+                            break;
+                        }
                     }
                 }
             }
@@ -594,8 +599,11 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (!hasLowerRawRL) {
+                lowerRawRL = rawRL;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+                hasLowerRawRL = true;
+            }
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {

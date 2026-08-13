@@ -310,3 +310,5 @@ target_include_directories(test_ssc_writer PRIVATE
 )
 target_link_libraries(test_ssc_writer PRIVATE Catch2::Catch2WithMain Catch2::Catch2 bng_engine bng_ast bng_core antlr4_static)
 catch_discover_tests(test_ssc_writer)
+add_executable(test_perf test_perf.cpp)
+target_link_libraries(test_perf bng_engine bng_parser bng_ast antlr4_static)
