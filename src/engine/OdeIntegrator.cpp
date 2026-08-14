@@ -540,8 +540,9 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
+        std::string lowerRawRL; // lazy evaluation
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
+            lowerRawRL = rawRateLaw;
             std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
             std::string timeStr = "time";
             if (lowerRawRL.find(timeStr) != std::string::npos) {
@@ -593,9 +594,11 @@ void OdeIntegrator::compile() {
         }
 
         if (!crxn.isFunctional) {
-            const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (lowerRawRL.empty()) {
+                lowerRawRL = rawRateLaw;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            }
+            const std::string rawRL = rawRateLaw;
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
