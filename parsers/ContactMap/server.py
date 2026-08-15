@@ -48,6 +48,8 @@ def next_id():
     return result   
 
 
+import tempfile
+import shutil
 class BipartiteServer:
     
     def __init__(self):
@@ -56,19 +58,28 @@ class BipartiteServer:
         counter = next_id()
         print(center,context,product)
         bnglFile = bbnglFile.data
-        with open('temp{0}.bngl'.format(counter),'w') as f:
-            f.write(bnglFile)
-        xmlFile = self._bngl2xml('temp{0}.bngl'.format(counter))
-        createGraph.processBNGL('temp{0}.xml'.format(counter),center,context,product)
-        with open('temp{0}.xml.dot'.format(counter),'rb') as f:
-            dot = f.read()
-        with open('temp{0}.xml.png'.format(counter),'rb') as f:
-            png = f.read()
-        for f in glob.glob('temp{0}*'.format(counter)):
-            try:
-                os.remove(f)
-            except OSError:
-                pass
+        temp_dir = tempfile.mkdtemp()
+        try:
+            bngl_path = os.path.join(temp_dir, 'temp.bngl')
+            with open(bngl_path, 'w') as f:
+                f.write(bnglFile)
+
+            # bngdev creates outputs in the same directory as the input BNGL file.
+            self._bngl2xml(bngl_path)
+
+            xml_path = os.path.join(temp_dir, 'temp.xml')
+            createGraph.processBNGL(xml_path, center, context, product)
+
+            dot_path = os.path.join(temp_dir, 'temp.xml.dot')
+            png_path = os.path.join(temp_dir, 'temp.xml.png')
+
+            with open(dot_path, 'rb') as f:
+                dot = f.read()
+            with open(png_path, 'rb') as f:
+                png = f.read()
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
         if returnType == 'dot':
             data = xmlrpclib.Binary(dot)
         else:
