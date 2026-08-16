@@ -1,0 +1,4 @@
+## 2025-02-17 - Insecure Temporary File Management
+**Vulnerability:** The BipartiteServer generated temporary files using sequential integer IDs (e.g. `temp1.bngl`) in the current working directory, creating a race condition if multiple requests process concurrently. The files were deleted using insecure `glob.glob` iteration, making it susceptible to tampering or cross-contamination.
+**Learning:** Sequential IDs and global shared directories are insecure for concurrent environments. Even if requests are handled linearly in some deployments, generating temp files in the shared workspace can collide with manual operations.
+**Prevention:** Always use `tempfile.mkdtemp()` to generate isolated, securely-randomized directories, and use `shutil.rmtree(temp_dir, ignore_errors=True)` within a `try...finally` block for cleanup.
