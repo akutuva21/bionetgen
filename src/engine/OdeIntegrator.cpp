@@ -208,8 +208,10 @@ void OdeIntegrator::compile() {
         lowerFuncNames.push_back(fname);
     }
 
+    std::string lowerRawRL;
     std::size_t rxnIndex = 0;
     for (const auto& rxn : network_.reactions.all()) {
+        bool lowerRawRL_computed = false;
         CompiledReaction crxn;
         crxn.reactantIndices = rxn.getReactants();
         crxn.productIndices = rxn.getProducts();
@@ -541,8 +543,11 @@ void OdeIntegrator::compile() {
         const auto& rateExpr = rxn.getRateExpression();
 
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (!lowerRawRL_computed) {
+                lowerRawRL = rawRateLaw;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+                lowerRawRL_computed = true;
+            }
             std::string timeStr = "time";
             if (lowerRawRL.find(timeStr) != std::string::npos) {
                 isFunctional = true;
@@ -594,8 +599,11 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (!lowerRawRL_computed) {
+                lowerRawRL = rawRL;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+                lowerRawRL_computed = true;
+            }
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {

@@ -1,0 +1,3 @@
+## 2024-05-15 - Optimize lowercase string allocations in OdeIntegrator
+**Learning:** O(N) operations inside tight reaction loops that allocate memory and process string transformations (like converting to lowercase) cause unnecessary overhead, especially since variables derived outside can be reused across iterations or lazily evaluated.
+**Action:** When a loop generates strings and processes string data (e.g., lowercasing via `std::transform`) that is needed in multiple nested or sub-blocks, hoist the allocation of the temporary string outside the loop and use a boolean flag to track whether computation was already done on this iteration to avoid redundant work.
