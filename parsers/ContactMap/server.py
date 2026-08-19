@@ -27,7 +27,8 @@ try:
     import xmlrpclib  # nosec
 except ImportError:
     import xmlrpc.client as xmlrpclib  # nosec
-import glob
+import tempfile
+import shutil
 import os
 # Restrict to a particular path.
 class RequestHandler(SimpleXMLRPCRequestHandler):
@@ -36,44 +37,36 @@ class RequestHandler(SimpleXMLRPCRequestHandler):
 # Create server
 
 
-
-iid = 1
-iid_lock = threading.Lock()
-
-def next_id():
-    global iid
-    with iid_lock:
-        result = iid
-        iid += 1
-    return result   
-
-
 class BipartiteServer:
     
     def __init__(self):
         pass
     def bipartite(self, bbnglFile,returnType,center,context,product):
-        counter = next_id()
         print(center,context,product)
         bnglFile = bbnglFile.data
-        with open('temp{0}.bngl'.format(counter),'w') as f:
-            f.write(bnglFile)
-        xmlFile = self._bngl2xml('temp{0}.bngl'.format(counter))
-        createGraph.processBNGL('temp{0}.xml'.format(counter),center,context,product)
-        with open('temp{0}.xml.dot'.format(counter),'rb') as f:
-            dot = f.read()
-        with open('temp{0}.xml.png'.format(counter),'rb') as f:
-            png = f.read()
-        for f in glob.glob('temp{0}*'.format(counter)):
-            try:
-                os.remove(f)
-            except OSError:
-                pass
-        if returnType == 'dot':
-            data = xmlrpclib.Binary(dot)
-        else:
-            data = xmlrpclib.Binary(png)
-        return data
+        temp_dir = tempfile.mkdtemp()
+        try:
+            bngl_path = os.path.join(temp_dir, 'temp.bngl')
+            xml_path = os.path.join(temp_dir, 'temp.xml')
+            dot_path = os.path.join(temp_dir, 'temp.xml.dot')
+            png_path = os.path.join(temp_dir, 'temp.xml.png')
+
+            with open(bngl_path,'w') as f:
+                f.write(bnglFile)
+            self._bngl2xml(bngl_path)
+            createGraph.processBNGL(xml_path,center,context,product)
+            with open(dot_path,'rb') as f:
+                dot = f.read()
+            with open(png_path,'rb') as f:
+                png = f.read()
+
+            if returnType == 'dot':
+                data = xmlrpclib.Binary(dot)
+            else:
+                data = xmlrpclib.Binary(png)
+            return data
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def getTransformations(self,bbnglFile):
         pass

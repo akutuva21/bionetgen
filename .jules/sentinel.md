@@ -1,0 +1,4 @@
+## 2025-02-18 - Fix Predictable Temporary File Names
+**Vulnerability:** The XML-RPC server `parsers/ContactMap/server.py` used a sequential, predictable integer counter to create temporary files (`temp{0}.bngl`, etc.) in the current working directory, and relied on `glob` to delete them. This caused race conditions, and an attacker could potentially overwrite or read the sensitive contents of the generated models by guessing the filename.
+**Learning:** Sequential naming and naive glob deletion for multi-file temporary outputs are vulnerable to race conditions and injection.
+**Prevention:** Always use the `tempfile` module (e.g., `tempfile.mkdtemp()`) to securely manage temporary directories for external processes, and clean up the entire temporary directory using `shutil.rmtree(temp_dir, ignore_errors=True)` in a `try...finally` block.
