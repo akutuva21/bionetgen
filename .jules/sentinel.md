@@ -1,0 +1,4 @@
+## 2026-08-20 - Fix Predictable Temporary Files
+**Vulnerability:** In `parsers/ContactMap/server.py`, the `bipartite` method used predictable, sequentially named temporary files (`temp{0}.bngl`) in the current working directory, and relied on manual deletion via `glob.glob` which could fail and leave files behind if the server crashed. This exposes the code to denial-of-service, race conditions, and possible path injection issues (CWE-377).
+**Learning:** Using manual sequencing (`iid += 1`) for file creation and `glob` for deletion in a multi-threaded XML-RPC server is dangerous and unreliable.
+**Prevention:** Always use the `tempfile` module (e.g. `tempfile.mkdtemp()`) to create guaranteed-unique and secure temporary files/directories, and ensure cleanup by placing `shutil.rmtree(temp_dir, ignore_errors=True)` inside a `try...finally` block.
