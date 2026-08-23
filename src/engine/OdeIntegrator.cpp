@@ -106,6 +106,7 @@ double evaluateRateString(const std::string& rateStr,
 
 // Checks if 'target' exists in 'text' bounded by non-word characters
 // Word characters are defined as alphanumeric or underscore.
+// This function expects 'text' to be already converted to lowercase if case-insensitive match is desired.
 bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
     if (target.empty() || text.length() < target.length()) {
         return false;
@@ -209,8 +210,10 @@ void OdeIntegrator::compile() {
     }
 
     std::size_t rxnIndex = 0;
+    std::string lowerRawRL;
     for (const auto& rxn : network_.reactions.all()) {
         CompiledReaction crxn;
+        bool lowerRawRL_populated = false;
         crxn.reactantIndices = rxn.getReactants();
         crxn.productIndices = rxn.getProducts();
         crxn.statFactor = rxn.getFactor();
@@ -541,10 +544,10 @@ void OdeIntegrator::compile() {
         const auto& rateExpr = rxn.getRateExpression();
 
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
+            lowerRawRL = rawRateLaw;
             std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
-            std::string timeStr = "time";
-            if (lowerRawRL.find(timeStr) != std::string::npos) {
+            lowerRawRL_populated = true;
+            if (lowerRawRL.find("time") != std::string::npos) {
                 isFunctional = true;
             } else {
                 // Check for observable dependencies
@@ -594,8 +597,11 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (!lowerRawRL_populated) {
+                lowerRawRL = rawRL;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+                lowerRawRL_populated = true;
+            }
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {

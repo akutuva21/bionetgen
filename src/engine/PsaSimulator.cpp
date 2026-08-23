@@ -185,39 +185,52 @@ void PsaSimulator::compileGroups() {
 
     std::unordered_map<std::string, BNGcore::PatternGraph> parsedObservableCache;
 
+    struct ParsedPatternInfo {
+        const BNGcore::PatternGraph* pattern;
+    };
+
     for (const auto& observable : model_.getObservables()) {
         CompiledGroup group;
         group.name = observable.getName();
 
+        std::vector<ParsedPatternInfo> currentObservablePatterns;
+        for (const auto& patternText : observable.getPatterns()) {
+            try {
+                auto cacheIt = parsedObservableCache.find(patternText);
+                if (cacheIt == parsedObservableCache.end()) {
+                    std::string cleanPattern = patternText;
+
+                    antlr4::ANTLRInputStream input(cleanPattern);
+                    BNGLexer lexer(&input);
+                    antlr4::CommonTokenStream tokens(&lexer);
+                    BNGParser parser(&tokens);
+                    auto* species = parser.species_def();
+
+                    if (parser.getNumberOfSyntaxErrors() == 0) {
+                        cacheIt = parsedObservableCache.emplace(patternText, bng::parser::buildPatternGraph(species, mutableModel, true)).first;
+                    }
+                }
+
+                if (cacheIt != parsedObservableCache.end()) {
+                    currentObservablePatterns.push_back({&cacheIt->second});
+                }
+            } catch (...) {
+                // Skip patterns that fail to parse
+            }
+        }
+
         for (std::size_t speciesIndex = 0; speciesIndex < network_.species.size(); ++speciesIndex) {
             std::size_t weight = 0;
 
-            for (const auto& patternText : observable.getPatterns()) {
+            for (const auto& pinfo : currentObservablePatterns) {
                 try {
-                    auto cacheIt = parsedObservableCache.find(patternText);
-                    if (cacheIt == parsedObservableCache.end()) {
-                        std::string cleanPattern = patternText;
+                    BNGcore::UllmannSGIso matcher(*pinfo.pattern, network_.species.get(speciesIndex).getSpeciesGraph().getGraph());
+                    BNGcore::List<BNGcore::Map> maps;
+                    std::size_t matchCount = matcher.find_maps(maps);
 
-                        antlr4::ANTLRInputStream input(cleanPattern);
-                        BNGLexer lexer(&input);
-                        antlr4::CommonTokenStream tokens(&lexer);
-                        BNGParser parser(&tokens);
-                        auto* species = parser.species_def();
-
-                        if (parser.getNumberOfSyntaxErrors() == 0) {
-                            cacheIt = parsedObservableCache.emplace(patternText, bng::parser::buildPatternGraph(species, mutableModel, true)).first;
-                        }
-                    }
-
-                    if (cacheIt != parsedObservableCache.end()) {
-                        BNGcore::UllmannSGIso matcher(cacheIt->second, network_.species.get(speciesIndex).getSpeciesGraph().getGraph());
-                        BNGcore::List<BNGcore::Map> maps;
-                        std::size_t matchCount = matcher.find_maps(maps);
-
-                        weight += matchCount;
-                    }
+                    weight += matchCount;
                 } catch (...) {
-                    // Skip patterns that fail to parse
+                    // Skip
                 }
             }
 
