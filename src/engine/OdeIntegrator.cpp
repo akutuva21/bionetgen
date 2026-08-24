@@ -208,6 +208,8 @@ void OdeIntegrator::compile() {
         lowerFuncNames.push_back(fname);
     }
 
+    std::string lowerRawRL;
+
     std::size_t rxnIndex = 0;
     for (const auto& rxn : network_.reactions.all()) {
         CompiledReaction crxn;
@@ -539,10 +541,12 @@ void OdeIntegrator::compile() {
         // Check if this reaction has a functional rate (depends on time or observables)
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
+        bool lowerRawRLComputed = false;
 
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
+            lowerRawRL = rawRateLaw;
             std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            lowerRawRLComputed = true;
             std::string timeStr = "time";
             if (lowerRawRL.find(timeStr) != std::string::npos) {
                 isFunctional = true;
@@ -594,8 +598,11 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (!lowerRawRLComputed) {
+                lowerRawRL = rawRL;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+                lowerRawRLComputed = true;
+            }
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
