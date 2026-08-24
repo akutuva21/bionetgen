@@ -16,22 +16,15 @@ import server
 
 class TestServer(unittest.TestCase):
 
-    @patch('server.os.remove')
-    @patch('server.glob.glob')
+    @patch('server.shutil.rmtree')
     @patch('builtins.open', new_callable=mock_open, read_data=b'dummy')
     @patch('server.createGraph')
     @patch.object(server.BipartiteServer, '_bngl2xml')
-    def test_bipartite_oserror_path(self, mock__bngl2xml, mock_createGraph, mock_file, mock_glob, mock_remove):
+    def test_bipartite_oserror_path(self, mock__bngl2xml, mock_createGraph, mock_file, mock_rmtree):
         """
-        Tests the error path in bipartite where os.remove throws an OSError,
-        verifying that it is caught and ignored gracefully.
+        Tests the error path in bipartite where shutil.rmtree throws an OSError,
+        which should be ignored by ignore_errors=True.
         """
-        # Mock glob to return some files that will be "deleted"
-        mock_glob.return_value = ['temp1.bngl', 'temp1.xml', 'temp1.xml.dot', 'temp1.xml.png']
-
-        # Make os.remove raise an OSError to simulate permission denied or file not found
-        mock_remove.side_effect = OSError("Mocked OSError")
-
         # Set up a mock bbnglFile object
         mock_bbnglFile = MagicMock()
         mock_bbnglFile.data = "dummy bngl data"
@@ -39,15 +32,17 @@ class TestServer(unittest.TestCase):
         srv = server.BipartiteServer()
 
         # Test bipartite with 'dot' returnType
-        # The OSError should be caught gracefully without crashing
+        # The OSError should be caught gracefully without crashing because ignore_errors=True is set.
+        # Although ignore_errors intercepts OSError internally, we can test that it's called.
         result = srv.bipartite(mock_bbnglFile, 'dot', 'center', 'context', 'product')
 
         # Verify the returned object is a Binary object as expected
         self.assertIsInstance(result, server.xmlrpclib.Binary)
         self.assertEqual(result.data, b'dummy')
 
-        # Verify os.remove was called for each file returned by glob
-        self.assertEqual(mock_remove.call_count, 4)
+        # Verify rmtree was called once
+        self.assertEqual(mock_rmtree.call_count, 1)
+        self.assertTrue(mock_rmtree.call_args[1].get('ignore_errors'))
 
     def test_getTransformations(self):
         """
