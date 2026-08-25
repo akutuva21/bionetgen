@@ -111,16 +111,33 @@ bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
         return false;
     }
 
-    std::size_t pos = text.find(target);
-    while (pos != std::string::npos) {
-        bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
-        bool rightBoundary = (pos + target.length() == text.length()) ||
-                             (!std::isalnum(static_cast<unsigned char>(text[pos + target.length()])) && text[pos + target.length()] != '_');
+    std::size_t pos = 0;
+    while ((pos = text.find_first_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pos)) != std::string::npos) {
 
-        if (leftBoundary && rightBoundary) {
-            return true;
+        bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
+
+        if (leftBoundary) {
+            if (text.length() - pos >= target.length()) {
+                bool match = true;
+                for (std::size_t i = 0; i < target.length(); ++i) {
+                    if (std::tolower(static_cast<unsigned char>(text[pos + i])) != std::tolower(static_cast<unsigned char>(target[i]))) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) {
+                    std::size_t rightPos = pos + target.length();
+                    bool rightBoundary = (rightPos == text.length()) ||
+                                         (!std::isalnum(static_cast<unsigned char>(text[rightPos])) && text[rightPos] != '_');
+                    if (rightBoundary) {
+                        return true;
+                    }
+                }
+            }
         }
-        pos = text.find(target, pos + 1);
+
+        pos = text.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", pos);
+        if (pos == std::string::npos) break;
     }
     return false;
 }
@@ -198,14 +215,6 @@ void OdeIntegrator::compile() {
                 }
             }
         }
-    }
-
-    // Precompute lowercase function names to avoid O(N * M) allocations and transformations
-    std::vector<std::string> lowerFuncNames;
-    for (const auto& func : model_.getFunctions()) {
-        std::string fname = func.getName();
-        std::transform(fname.begin(), fname.end(), fname.begin(), [](unsigned char c) { return std::tolower(c); });
-        lowerFuncNames.push_back(fname);
     }
 
     std::size_t rxnIndex = 0;
@@ -541,10 +550,8 @@ void OdeIntegrator::compile() {
         const auto& rateExpr = rxn.getRateExpression();
 
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
             std::string timeStr = "time";
-            if (lowerRawRL.find(timeStr) != std::string::npos) {
+            if (rawRateLaw.find(timeStr) != std::string::npos) {
                 isFunctional = true;
             } else {
                 // Check for observable dependencies
@@ -559,10 +566,8 @@ void OdeIntegrator::compile() {
 
             std::string matchedFuncName;
             if (!isFunctional) {
-                std::size_t fIdx = 0;
                 for (const auto& func : model_.getFunctions()) {
-                    const auto& lowerFname = lowerFuncNames[fIdx++];
-                    if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                    if (hasWordBoundaryMatch(rawRateLaw, func.getName())) {
                         isFunctional = true;
                         matchedFuncName = func.getName();
                         break;
@@ -594,13 +599,9 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
 
-            std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
-                const auto& lowerFname = lowerFuncNames[fIdx++];
-                if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                if (hasWordBoundaryMatch(rawRL, func.getName())) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
