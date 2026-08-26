@@ -202,6 +202,7 @@ void OdeIntegrator::compile() {
 
     // Precompute lowercase function names to avoid O(N * M) allocations and transformations
     std::vector<std::string> lowerFuncNames;
+    std::string lowerRawRL;
     for (const auto& func : model_.getFunctions()) {
         std::string fname = func.getName();
         std::transform(fname.begin(), fname.end(), fname.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -388,6 +389,11 @@ void OdeIntegrator::compile() {
 
         std::string rateStr = rateStrBuilder.str();
         const std::string rawRateLaw = rxn.getRateLaw();
+        // Bolt optimization: Moved lowercase transformation here to prevent redundant memory allocations
+        // and std::transform calls for the same string across multiple internal logic branches.
+        // Bolt optimization: Reuse string allocation for lowerRawRL outside the loop
+        lowerRawRL = rawRateLaw;
+        std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
 
         // Format in .net: "Sat kcat Km" or "MM kcat Km" or "Hill Vmax Kh n"
         bool isSatMMHill = false;
@@ -541,8 +547,6 @@ void OdeIntegrator::compile() {
         const auto& rateExpr = rxn.getRateExpression();
 
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
             std::string timeStr = "time";
             if (lowerRawRL.find(timeStr) != std::string::npos) {
                 isFunctional = true;
@@ -594,8 +598,6 @@ void OdeIntegrator::compile() {
 
         if (!crxn.isFunctional) {
             const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
