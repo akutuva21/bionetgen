@@ -16,21 +16,16 @@ import server
 
 class TestServer(unittest.TestCase):
 
-    @patch('server.os.remove')
-    @patch('server.glob.glob')
+    @patch('shutil.rmtree')
+    @patch('tempfile.mkdtemp')
     @patch('builtins.open', new_callable=mock_open, read_data=b'dummy')
     @patch('server.createGraph')
     @patch.object(server.BipartiteServer, '_bngl2xml')
-    def test_bipartite_oserror_path(self, mock__bngl2xml, mock_createGraph, mock_file, mock_glob, mock_remove):
+    def test_bipartite_oserror_path(self, mock__bngl2xml, mock_createGraph, mock_file, mock_mkdtemp, mock_rmtree):
         """
-        Tests the error path in bipartite where os.remove throws an OSError,
-        verifying that it is caught and ignored gracefully.
+        Tests the error path in bipartite where shutil.rmtree ignores errors gracefully.
         """
-        # Mock glob to return some files that will be "deleted"
-        mock_glob.return_value = ['temp1.bngl', 'temp1.xml', 'temp1.xml.dot', 'temp1.xml.png']
-
-        # Make os.remove raise an OSError to simulate permission denied or file not found
-        mock_remove.side_effect = OSError("Mocked OSError")
+        mock_mkdtemp.return_value = '/tmp/dummy_temp_dir'
 
         # Set up a mock bbnglFile object
         mock_bbnglFile = MagicMock()
@@ -39,15 +34,14 @@ class TestServer(unittest.TestCase):
         srv = server.BipartiteServer()
 
         # Test bipartite with 'dot' returnType
-        # The OSError should be caught gracefully without crashing
         result = srv.bipartite(mock_bbnglFile, 'dot', 'center', 'context', 'product')
 
         # Verify the returned object is a Binary object as expected
         self.assertIsInstance(result, server.xmlrpclib.Binary)
         self.assertEqual(result.data, b'dummy')
 
-        # Verify os.remove was called for each file returned by glob
-        self.assertEqual(mock_remove.call_count, 4)
+        # Verify shutil.rmtree was called with ignore_errors=True
+        mock_rmtree.assert_called_once_with('/tmp/dummy_temp_dir', ignore_errors=True)
 
     def test_getTransformations(self):
         """
