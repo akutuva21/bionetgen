@@ -53,8 +53,7 @@ double RateMM::getRate(vector<double> X){
 	// Rate calculation
 	double St = X[0];
 	double Et = X[1];
-	double b = St - Et - this->Km;
-	double S = 0.5*(b + sqrt(b*b + 4.0*St*this->Km));
+	double S = Util::mm_free_substrate(St, this->Km, Et);
 	double rate = this->kcat*Et*S/(this->Km + S);
 	return rate;
 }
@@ -72,9 +71,8 @@ double RateMM::get_dRate_dX(unsigned int which, vector<double> X){
 	// Rate calculation
 	double St = X[0];
 	double Et = X[1];
-	double b = St - Et - this->Km;
-	double sqrt_bb4ac = sqrt(b*b + 4.0*St*this->Km);
-	double S = 0.5*(b + sqrt_bb4ac);
+	double sqrt_bb4ac = 0.0;
+	double S = Util::mm_free_substrate(St, this->Km, Et, &sqrt_bb4ac);
 	//
 	double dRate = this->kcat/(this->Km + S);
 	//

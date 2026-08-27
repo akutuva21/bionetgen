@@ -481,7 +481,7 @@ void OdeIntegrator::compile() {
             if (paramNames.size() >= 2) {
                 // Sat(kcat, Km): rate = kcat * [S] / (Km + [S]) * [other reactants]
                 // MM(kcat, Km):  rate = self-consistent MM with quadratic for free substrate
-                //   St=reactant[0], Et=reactant[1], b=St-Et-Km, S=0.5*(b+sqrt(b^2+4*St*Km))
+                //   St=reactant[0], Et=reactant[1], S = non-negative root of S^2-b*S-St*Km=0, b=St-Km-Et
                 //   rate = kcat * Et * S / (Km + S)   (total rate, no further mass-action multiply)
                 // Hill(Vmax, Kh, n): rate = Vmax * [S]^n / (Kh^n + [S]^n) * [other reactants]
                 std::string kcat = paramNames[0];
