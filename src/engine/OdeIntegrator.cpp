@@ -1,6 +1,7 @@
 #include "OdeIntegrator.hpp"
 
 #include <algorithm>
+#include <string_view>
 #include <cctype>
 
 #include <cmath>
@@ -207,6 +208,7 @@ void OdeIntegrator::compile() {
         lowerFuncNames.push_back(fname);
     }
 
+    std::string lowerRawRL;
     std::size_t rxnIndex = 0;
     for (const auto& rxn : network_.reactions.all()) {
         CompiledReaction crxn;
@@ -395,9 +397,9 @@ void OdeIntegrator::compile() {
         {
             // Trim leading whitespace
             auto start = rawRateLaw.find_first_not_of(" \t\r\n");
-            std::string rlTrimmed = (start != std::string::npos) ? rawRateLaw.substr(start) : rawRateLaw;
+            std::string_view rlTrimmed = (start != std::string::npos) ? std::string_view(rawRateLaw).substr(start) : std::string_view(rawRateLaw);
 
-            auto isWordPrefix = [](const std::string& str, const std::string& kwLower) {
+            auto isWordPrefix = [](std::string_view str, std::string_view kwLower) {
                 if (str.size() < kwLower.size()) return false;
                 for (std::size_t i = 0; i < kwLower.size(); ++i) {
                     if (std::tolower(static_cast<unsigned char>(str[i])) != static_cast<unsigned char>(kwLower[i])) {
@@ -539,7 +541,7 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
-        std::string lowerRawRL;
+        lowerRawRL.clear();
         bool hasLowerRawRL = false;
 
         auto ensureLowerRawRL = [&]() {
