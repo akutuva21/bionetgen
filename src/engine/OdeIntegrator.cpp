@@ -126,6 +126,35 @@ bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
     return false;
 }
 
+// ⚡ Bolt: Inline case-insensitive string matching prevents repetitive memory
+// allocations and std::transform overhead in tight loops.
+bool hasWordBoundaryMatchCaseInsensitive(const std::string& text, const std::string& target) {
+    if (target.empty() || text.length() < target.length()) {
+        return false;
+    }
+    std::size_t targetLen = target.length();
+    for (std::size_t i = 0; i <= text.length() - targetLen; ++i) {
+        if (std::tolower(static_cast<unsigned char>(text[i])) == static_cast<unsigned char>(target[0])) {
+            bool match = true;
+            for (std::size_t j = 1; j < targetLen; ++j) {
+                if (std::tolower(static_cast<unsigned char>(text[i + j])) != static_cast<unsigned char>(target[j])) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                bool leftBoundary = (i == 0) || (!std::isalnum(static_cast<unsigned char>(text[i - 1])) && text[i - 1] != '_');
+                bool rightBoundary = (i + targetLen == text.length()) ||
+                                     (!std::isalnum(static_cast<unsigned char>(text[i + targetLen])) && text[i + targetLen] != '_');
+                if (leftBoundary && rightBoundary) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 } // anonymous namespace
 
 
@@ -539,23 +568,11 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
-        std::string lowerRawRL;
-        bool hasLowerRawRL = false;
-
-        auto ensureLowerRawRL = [&]() {
-            if (!hasLowerRawRL) {
-                lowerRawRL = rawRateLaw;
-                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
-                hasLowerRawRL = true;
-            }
-        };
-
         bool checkedFunctions = false;
 
         if (!isFunctional && rateExpr.has_value()) {
-            ensureLowerRawRL();
             std::string timeStr = "time";
-            if (lowerRawRL.find(timeStr) != std::string::npos) {
+            if (hasWordBoundaryMatchCaseInsensitive(rawRateLaw, timeStr)) {
                 isFunctional = true;
             } else {
                 // Check for observable dependencies
@@ -573,7 +590,7 @@ void OdeIntegrator::compile() {
                 std::size_t fIdx = 0;
                 for (const auto& func : model_.getFunctions()) {
                     const auto& lowerFname = lowerFuncNames[fIdx++];
-                    if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                    if (hasWordBoundaryMatchCaseInsensitive(rawRateLaw, lowerFname)) {
                         isFunctional = true;
                         matchedFuncName = func.getName();
                         break;
@@ -605,12 +622,10 @@ void OdeIntegrator::compile() {
         }
 
         if (!crxn.isFunctional && !checkedFunctions) {
-            ensureLowerRawRL();
-
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
                 const auto& lowerFname = lowerFuncNames[fIdx++];
-                if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                if (hasWordBoundaryMatchCaseInsensitive(rawRateLaw, lowerFname)) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
