@@ -558,3 +558,57 @@ explicitly directed that no pull request be opened against `RuleWorld` and no
 fork default-branch push be made. The final branch was pushed only to the
 fork; local Release, independent-reference, full-harness, and ASan/UBSan
 evidence above are the available validation for this no-PR delivery.
+
+## Canonical-certificate and deduplication redesign screens
+
+The expanded canonical track tested three representation-level directions on
+the existing `codex/canonical-redesign-20260901` source tip, then removed all
+three because they were slower on the pinned production matrix. Each screen
+used the retained canonical executable as baseline, 10 paired fresh processes
+per model with alternating order, and deterministic output-hash comparison.
+The baseline executable SHA-256 was
+`9675de22ee67be6e2e5031ad815c6d033e9fe540ee07457043b334a19d533039`.
+
+The benchmark commands had this common form, with the temporary candidate
+executable varied per screen:
+
+```sh
+python3 Benchmarks/portable_cpu_benchmark.py \
+  --executable-a /private/tmp/bng-final-canonical-20260901/src/bng_cpp \
+  --executable-b /private/tmp/bng-canonical-certificate-screen \
+  --model bng2/Models2/blbr.bngl \
+  --model bng2/Models2/SHP2_base_model.bngl \
+  --model bng2/Models2/egfr_net.bngl \
+  --model bng2/Models2/fceri_ji.bngl \
+  --repetitions 10 --timeout 30 \
+  --output /private/tmp/portable_cpu_canonical_certificate_screen_10.json
+```
+
+The second screen used `bng-canonical-certificate-screen-fast` and
+`portable_cpu_canonical_certificate_screen_fast_10.json`; the third used
+`bng-canonical-refine-screen` and
+`portable_cpu_canonical_refine_screen_10.json`. Candidate hashes were,
+respectively, `4c920951aacdca8581f7e618405c39e9079c8a6b12a02d4d1b82eb5a53859a94`,
+`288241c73050699cdbd7458091a171db3c2abc4d4942637b232152d7e1a94d69`, and
+`c95fc2f13009ba1f826d9887171a93b8faba7b6ab0194dce86afa05ce092b40b`.
+The table gives baseline-minus-candidate reduction, where positive is faster;
+the bracket is inclusive IQR. Workloads are ordered `blbr`, SHP2, EGFR,
+FcERI.
+
+| Screen | Wall reduction by workload (median [IQR], %) | CPU-user reduction by workload (median [IQR], %) | Decision |
+| --- | --- | --- | --- |
+| Numeric certificate hash map plus sorted tokens | -4.342 [2.596], -1.097 [1.110], -1.464 [1.367], -1.067 [1.154] | -4.152 [2.387], -1.378 [1.351], -1.432 [1.619], -0.776 [1.074] | reject: slower across all four |
+| Allocation-free commutative certificate accumulators | -2.582 [3.679], -1.251 [7.877], -1.138 [2.472], -2.010 [5.782] | -3.653 [2.254], -1.272 [4.107], -0.574 [2.128], -1.689 [4.237] | reject: slower across all four |
+| Weisfeiler-Leman color refinement before Nauty (`nv >= 24`) | -5.113 [1.917], -2.108 [2.500], -4.415 [1.910], -1.521 [1.286] | -4.397 [2.524], -1.687 [2.395], -4.640 [1.706], -2.033 [1.639] | reject: added refinement cost |
+
+All three screens produced byte-identical deterministic output maps to the
+baseline for every paired run, but none produced a material end-to-end CPU
+reduction. The first two screens added compact numeric invariants and
+certificate indexes before the existing collision-safe canonical/Ullmann
+path; the third added bounded color-refinement rounds before Nauty. Their
+guard/index/refinement work costs more than it saves on these production
+graphs. ASan/UBSan and Release validation for the retained source are recorded
+above; no rejected implementation was committed. The remaining dominant
+hotspot is therefore the canonical-certificate/deduplication representation
+itself, where a material improvement requires a broader redesign of graph
+storage, certificate reuse, collision handling, and ordering semantics.
