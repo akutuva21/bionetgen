@@ -408,6 +408,75 @@ batch-deduplicates graphs while preserving BNG2 ordering and collision-safe
 semantics. Parallel/GPU execution or a different-language implementation would
 also require a broader design; none is folded into this portable CPU branch.
 
+## Canonical-label follow-up
+
+Branch `codex/canonical-redesign-20260901` starts at the graph/string tip
+`62f4dc6bd2a191d89a593e2d952e6c74c5b47271` and is pushed only to the fork. The
+retained source commit is `b73d9e3d` (`perf: streamline canonical node
+labels`). `src/core/Node.cpp:190-199` replaces the temporary
+`std::stringstream` in `Node::get_label()` with one `std::string` assembled by
+append and `std::to_string`. Canonical indices, node-type/state labels, graph
+ordering, and all downstream formats are unchanged. The focused regression in
+`tests/test_pattern_graph.cpp:213-219` requires the exact `7:A~<0>` label.
+
+The candidate was compared with the retained graph/string executable using 40
+paired repetitions per production model. The input hashes, commands, fresh
+worker processes, alternating order, output measurements, and timeout were the
+same as the graph/string run above; raw results are in
+`/private/tmp/portable_cpu_node_label_40.json`:
+
+```sh
+python3 Benchmarks/portable_cpu_benchmark.py \
+  --executable-a /private/tmp/bng-graph-string-builder \
+  --executable-b /private/tmp/bng-canonical-direct-index/src/bng_cpp \
+  --model bng2/Models2/blbr.bngl \
+  --model bng2/Models2/SHP2_base_model.bngl \
+  --model bng2/Models2/egfr_net.bngl \
+  --model bng2/Models2/fceri_ji.bngl \
+  --repetitions 40 --timeout 30 \
+  --output /private/tmp/portable_cpu_node_label_40.json
+```
+
+The baseline executable SHA-256 was
+`bdd7b6b590b77c10bd1c6a46e76645c5b5e76b3d03c815a12f3630e1a323e772`; the
+candidate SHA-256 was
+`9675de22ee67be6e2e5031ad815c6d033e9fe540ee07457043b334a19d533039`. The
+table reports median baseline -> candidate seconds and paired median
+candidate-minus-baseline reduction, where positive means faster. IQR is the
+inclusive paired reduction spread.
+
+| Workload | Wall seconds; reduction | CPU seconds; reduction | Result |
+| --- | --- | --- | --- |
+| `blbr` | 0.021886 -> 0.021758; +0.588% [-1.043..+2.933] | 0.019167 -> 0.018891; +1.443% [-0.996..+2.852] | small correctness/noise check |
+| `SHP2_base_model` | 0.149267 -> 0.148588; +0.455% [-1.492..+1.571] | 0.143792 -> 0.143190; +0.419% [-1.229..+1.626] | small but positive |
+| `egfr_net` | 0.554846 -> 0.546493; +1.505% [+0.492..+2.931] | 0.542507 -> 0.532942; +1.763% [+0.618..+2.862] | retain |
+| `fceri_ji` | 0.630641 -> 0.621653; +1.425% [+0.552..+2.547] | 0.617730 -> 0.609962; +1.258% [+0.562..+2.484] | retain |
+
+Wall/CPU wins were 24/40 and 23/40 for `blbr`, 26/40 and 24/40 for SHP2,
+33/40 and 36/40 for EGFR, and 33/40 and 34/40 for FcERI. Median maximum-RSS
+changes were +0.584%, +0.374%, +0.150%, and +0.184%. Every pair on every
+workload had identical output-hash maps, output sizes, and network
+species/reaction counts. The focused pattern-graph test passed 40 assertions
+in 7 cases; the fresh Release build at
+`/private/tmp/bng-final-canonical-20260901` passed CTest 80/80, and its
+ASan/UBSan build plus all four production runs completed without diagnostics.
+
+Several broader local-index shortcuts were screened and removed: a gated
+node-index lookup regressed EGFR by 0.968% wall and 0.925% CPU while giving
+mixed results elsewhere, and an edge-vector fast path was within noise or
+slower on the larger models. The retained label-builder change is therefore a
+small implementation improvement around the measured canonical hotspot, not a
+claim that Nauty/canonical deduplication has been solved.
+
+The remaining dominant canonical/Nauty work is the graph deduplication data
+structure and repeated canonical-certificate construction inside rule
+expansion. A material portable gain requires a broader representation-level
+redesign that can reuse collision-safe certificates or batch-deduplicate
+graphs while preserving BNG2 ordering. Process-level parallel work and the
+GPU experiment remain on separate opt-in branches; the GPU path was not
+retained because the required double-precision Metal kernel was not portable
+to the available toolchain. A language rewrite is likewise out of scope.
+
 ## Validation commands and status
 
 Targeted tests and the full Release CTest suite were run on the candidate:
