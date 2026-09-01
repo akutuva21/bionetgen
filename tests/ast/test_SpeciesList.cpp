@@ -67,10 +67,15 @@ TEST_CASE("SpeciesList preserves compartment-aware deduplication", "[ast][Specie
     const auto first = list.add(cytosolic);
     const auto second = list.add(nuclear);
     const auto duplicate = list.add(cytosolic);
+    const Species probe = makeSpecies("CP");
+    const auto exact = list.findExact(probe);
 
     REQUIRE(first.second);
     REQUIRE(second.second);
     REQUIRE_FALSE(duplicate.second);
     REQUIRE(duplicate.first == first.first);
+    REQUIRE(exact.has_value());
+    REQUIRE(exact.value() == first.first);
+    REQUIRE_FALSE(probe.getSpeciesGraph().getGraph().is_canonical());
     REQUIRE(list.size() == 2);
 }
