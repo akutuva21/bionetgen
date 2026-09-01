@@ -230,14 +230,17 @@ calls nested in product construction. The FcERI profile likewise showed
 network generation as the relevant generation hotspot, while its full run was
 also dominated by the ODE solver.
 
-Measured alternatives were not retained:
+Measured alternatives were not retained. The last experiment used executable
+SHA-256 `de090c072b46654105f4a7b2bd4a2b62559b08f3cb5fd9ec41b8a14f942fd471`
+and compared the edge-lookup change directly with the retained candidate:
 
-| Experiment | Paired wall-time deltas by `SHP2`, `blbr`, `egfr_net`, `fceri_ji` | Decision |
+| Experiment | Paired deltas by `SHP2`, `blbr`, `egfr_net`, `fceri_ji` | Decision |
 | --- | --- | --- |
 | `std::map<Node*, int>` -> unordered map in canonicalization | +1.009%, -1.365%, +0.232%, -0.281% | reject: inconsistent and slower on two larger cases |
 | Exact-first without the compartment-safe follow-up | -4.611%, +5.299%, +1.444%, -1.441% | reject: regressions on `blbr` and EGFR |
 | Fingerprint-gated serialization | -1.982%, +9.640%, +3.199%, +0.407% | reject: broad regressions |
 | Fingerprint plus isomorphism precheck | +10.907%, +30.282%, +22.450%, +9.928% | reject: decisively slower |
+| Temporary node-index edge lookup (wall / CPU) | +0.205% / +0.217%, -0.600% / -1.554%, -0.928% / -1.006%, -0.964% / -1.003% | reject: SHP2 CPU regression; only 9/20 CPU wins |
 
 The remaining profile-dominant CPU work is canonical labeling/Nauty and related
 graph/string operations inside rule expansion and species deduplication. ODE
