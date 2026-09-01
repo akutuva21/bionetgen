@@ -4,6 +4,7 @@ Date: 2026-09-01
 Repository: `RuleWorld/bionetgen`
 Upstream target inspected: `master` at `43ddf3afe165192a222fd13e4917a1902ffe3446`
 Issue branch base and native build checkout: `43ddf3afe165192a222fd13e4917a1902ffe3446`
+PR base at creation: `master` at `604467d685483088716395700357db573be3cd9f` (the repository default branch; `main` does not exist)
 
 ## Scope and method
 
