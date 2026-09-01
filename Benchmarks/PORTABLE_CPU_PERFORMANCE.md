@@ -477,6 +477,34 @@ GPU experiment remain on separate opt-in branches; the GPU path was not
 retained because the required double-precision Metal kernel was not portable
 to the available toolchain. A language rewrite is likewise out of scope.
 
+## Current hotspot re-audit
+
+The final canonical executable was re-profiled on the pinned production
+`egfr_net` model on 2026-09-01 using a fresh 2-second macOS `sample` capture
+(`/private/tmp/bng-hotspot-recheck.KqmjIE/canonical-egfr.sample`). The top
+stack was `ActionDispatch::execute` (307 samples),
+`NetworkGenerator::generate`/`generateNative` (278), and
+`ReactionRule::expandRule` (106). Canonical work remained visible below it:
+`PatternGraph::get_label`, `find_canonical_order`, `Node::get_label`, and
+`PatternGraph::get_BNG2_string`/edge sorting. The run produced the pinned
+EGFR network hash `84dce91d99d292092ec89878103d2f1ff6819d9f08415937728e733cd0a4eb71`.
+
+A fresh 10-pair all-model sanity recheck used the same runner and paired
+process protocol as the 40-pair result above. Reductions are positive when
+the candidate is faster; all four models had equal output hashes, sizes, and
+network counts:
+
+| Workload | Canonical wall reduction | Canonical CPU reduction |
+| --- | ---: | ---: |
+| `blbr` | +1.294% | +1.566% |
+| `SHP2_base_model` | +1.205% | +1.284% |
+| `egfr_net` | +1.135% | +1.278% |
+| `fceri_ji` | +0.759% | +0.776% |
+
+This short recheck confirms that the branch/toolchain still exercises the
+same canonical path; the earlier 40-pair matrix remains the performance
+decision because the small sample is not a replacement for its spread.
+
 ## Validation commands and status
 
 Targeted tests and the full Release CTest suite were run on the candidate:
