@@ -46,8 +46,11 @@ final source tree:                   7ee2db11
 ```
 
 `git pull --ff-only origin master` was run before creating the dedicated
-branch. At the candidate-source audit, the branch was six commits ahead of
-`origin/master` and nine commits ahead of `upstream/master`. The previously
+branch. At the pre-cache candidate-source audit, the branch was six commits
+ahead of `origin/master` and nine commits ahead of `upstream/master`. At the
+final audit, `HEAD` and `origin/codex/portable-cpu-20260831` were both
+`d7002abe33f665d0ccccafc81e5acec411065f73`; the branch was 14 commits ahead
+of `origin/master` and 17 commits ahead of `upstream/master`. The previously
 dirty files and explicitly listed untracked file were cleared at the user's
 request before this series began; the final tree is required to be clean.
 
