@@ -1466,14 +1466,13 @@ std::size_t ReactionRule::expandRule(
                     return 0;
                 }
                 auto product = Species(std::move(sg), 0.0, false, productPattern.getCompartment());
-                std::string exact;
-                const auto exactIndex = speciesList.findExact(product, exact);
+                const auto exactIndex = speciesList.findExact(product);
                 std::size_t index;
                 if (exactIndex) {
                     index = *exactIndex;
                 } else {
                     product.getSpeciesGraph().canonicalLabel();
-                    index = speciesList.addWithExactKey(std::move(product), std::move(exact)).first;
+                    index = speciesList.add(std::move(product)).first;
                 }
                 productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
                 productIndices.push_back(index);
@@ -2372,14 +2371,13 @@ bool ReactionRule::buildReaction(
                     }
                 }
                 auto prodSp = Species(std::move(productGraph), 0.0, false, compartmentToUse);
-                std::string exact;
-                const auto exactIndex = speciesList.findExact(prodSp, exact);
+                const auto exactIndex = speciesList.findExact(prodSp);
                 std::size_t index;
                 if (exactIndex) {
                     index = *exactIndex;
                 } else {
                     prodSp.getSpeciesGraph().canonicalLabel();
-                    index = speciesList.addWithExactKey(std::move(prodSp), std::move(exact)).first;
+                    index = speciesList.add(std::move(prodSp)).first;
                 }
                 productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
                 productIndices.push_back(index);
@@ -2640,14 +2638,13 @@ bool ReactionRule::buildReaction(
             // GPCR has 'l' bonded: the product pattern says 'l' should be unbound.
             // (Product pattern bond constraint check would go here in a future version)
             auto prodSp = Species(std::move(productGraph), 0.0, false, compartmentToUse);
-            std::string exact;
-            const auto exactIndex = speciesList.findExact(prodSp, exact);
+            const auto exactIndex = speciesList.findExact(prodSp);
             std::size_t index;
             if (exactIndex) {
                 index = *exactIndex;
             } else {
                 prodSp.getSpeciesGraph().canonicalLabel();
-                index = speciesList.addWithExactKey(std::move(prodSp), std::move(exact)).first;
+                index = speciesList.add(std::move(prodSp)).first;
             }
             productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
             productIndices.push_back(index);
