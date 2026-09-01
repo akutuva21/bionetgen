@@ -6,14 +6,19 @@ This series targets the native C++ network-generation path used by production
 models in `bng2/Models2`. It does not optimize a synthetic microbenchmark, alter
 the CLI, change generated-file formats, or add an external dependency.
 
-The retained optimization is the two-commit implementation in `533ac26b`
+The first retained optimization is the two-commit implementation in `533ac26b`
 (`perf: skip canonical labels for exact product duplicates`) and `92ca4c03`
 (`perf: preserve canonical product ordering in exact dedup fast path`). On the
-paired production matrix, median end-to-end wall-time changes ranged from
+paired production matrix, its median end-to-end wall-time changes ranged from
 -0.172% to -6.903%, and median CPU-time changes ranged from +0.081% to
 -7.288%. The small `blbr` case is close enough to the noise floor that it is
 reported as a workload limitation; the medium and large cases provide the
-material evidence for retaining the change.
+material evidence for retaining that change.
+
+The second retained optimization is `7ee2db11` (`perf: cache immutable
+reaction pattern metadata`). Against the first retained candidate, its median
+CPU-time change was negative on all four workloads, ranging from -0.856% to
+-2.317%; the detailed second matrix and its spread are recorded below.
 
 The branch also contains two correctness/build-enablement fixes and focused
 tests:
@@ -36,8 +41,8 @@ upstream/master at synchronization: 43ddf3afe165192a222fd13e4917a1902ffe3446
 origin/master at synchronization:   b00410628484f639efbf294f8a150f21c4e8bb29
 working branch:                      codex/portable-cpu-20260831
 baseline source:                     46da45c4
-retained performance source:         92ca4c03
-final source tree:                   e08a9bd2
+retained performance source:         92ca4c03, 7ee2db11
+final source tree:                   7ee2db11
 ```
 
 `git pull --ff-only origin master` was run before creating the dedicated
@@ -46,10 +51,10 @@ branch. At the candidate-source audit, the branch was six commits ahead of
 dirty files and explicitly listed untracked file were cleared at the user's
 request before this series began; the final tree is required to be clean.
 
-The final source tree includes the rejected exact-key experiment
-`70acc9e2` followed by `e08a9bd2`, which restores the retained implementation;
-the rejected experiment is documented below and is not present in the final
-source behavior.
+The final performance source includes the rejected exact-key experiment
+`70acc9e2` followed by `e08a9bd2`, which restores the retained implementation,
+and the accepted immutable pattern-metadata cache `7ee2db11`. The rejected
+experiment is documented below and is not present in the final source behavior.
 
 Input SHA-256 hashes:
 
@@ -124,11 +129,14 @@ python3 Benchmarks/portable_cpu_benchmark.py \
   --output /private/tmp/portable_cpu_exact_precheck_move_20.json
 ```
 
-The final Release executable at `build-codex/src/bng_cpp` has the same SHA-256
-as the candidate artifact used above. The baseline executable SHA-256 was
+The first retained Release executable had the same SHA-256 as the candidate
+artifact used above. The baseline executable SHA-256 was
 `ece7a09b247a2a8eb95dbaa26db7427aa0e5d0772f5b7b8097a6d36aa404399a`; the
-candidate executable SHA-256 was
+first retained candidate executable SHA-256 was
 `a59ed4dc4ff5becf347b95f1915c6ddaf60bc54d4bb84a0160ae60a737d2a9a2`.
+The final Release executable, including the metadata cache, is
+`build-codex/src/bng_cpp` with SHA-256
+`c4eeb05df99869d34364671089df598c7ecfc5f700c70e957297e968cb9b4d15`.
 CPU time and RSS use Python `resource.getrusage` because `/usr/bin/time -l`
 cannot read the required macOS counters in the sandbox.
 
@@ -149,6 +157,38 @@ for `fceri_ji`. Median maximum-RSS deltas were -0.146%, -0.610%, +0.379%,
 and +0.062% in the same workload order. The medium and large workloads
 therefore show repeatable CPU and wall-time reductions; `blbr` is retained
 only as a small correctness/noise check, not as the performance justification.
+
+The second retained optimization was measured against the first retained safe
+candidate (`a59ed4dc...`) with 40 paired repetitions per workload (320 raw
+records). The candidate executable was
+`c4eeb05df99869d34364671089df598c7ecfc5f700c70e957297e968cb9b4d15`. The raw
+result is `/private/tmp/portable_cpu_pattern_metadata_cache_40.json`.
+
+```sh
+python3 Benchmarks/portable_cpu_benchmark.py \
+  --executable-a /private/tmp/bng_cpp-candidate-exact-precheck-move \
+  --executable-b build-codex/src/bng_cpp \
+  --model bng2/Models2/blbr.bngl \
+  --model bng2/Models2/SHP2_base_model.bngl \
+  --model bng2/Models2/egfr_net.bngl \
+  --model bng2/Models2/fceri_ji.bngl \
+  --repetitions 40 --timeout 30 \
+  --output /private/tmp/portable_cpu_pattern_metadata_cache_40.json
+```
+
+| Workload | Wall retained -> cache (s) | Paired wall delta: median [IQR; min..max] | CPU retained -> cache (s) | Paired CPU delta: median [IQR; min..max] |
+| --- | ---: | ---: | ---: | ---: |
+| `blbr` | 0.023026 -> 0.022553 | -2.197% [-3.642..+0.358; -8.767..+4.164] | 0.022000 -> 0.021540 | -2.317% [-3.590..+0.368; -8.756..+4.781] |
+| `SHP2_base_model` | 0.151441 -> 0.150011 | -0.720% [-1.954..+0.503; -4.262..+2.893] | 0.149507 -> 0.148274 | -0.856% [-1.927..+0.131; -3.838..+2.036] |
+| `egfr_net` | 0.568566 -> 0.566068 | -0.997% [-1.621..+0.010; -4.814..+4.013] | 0.565503 -> 0.562712 | -1.014% [-1.633..-0.076; -4.098..+4.055] |
+| `fceri_ji` | 0.637187 -> 0.631220 | -1.108% [-1.396..-0.436; -5.827..+0.483] | 0.633409 -> 0.626914 | -1.116% [-1.435..-0.593; -5.985..+0.042] |
+
+Paired wall/CPU wins in this second run were 29/40 and 29/40 for `blbr`,
+27/40 and 29/40 for `SHP2`, 29/40 and 31/40 for `egfr_net`, and 38/40 and
+39/40 for `fceri_ji`. Median maximum-RSS deltas were -0.438%, +0.989%,
+0.000%, and +0.372%, respectively. All four CPU medians improved; the
+medium workload's IQR crosses zero slightly, so this records the consistent
+direction and artifact identity without claiming every individual pair wins.
 
 ## Mechanism changed
 
@@ -171,16 +211,29 @@ pre-canonical exact key into insertion timed out on `Motivating_example_cBNGL`
 because canonical labeling can change serializer order; its safety-gated
 variant was noise-level or slower and was not retained.
 
+`src/ast/ReactionRule.hpp` and `src/ast/ReactionRule.cpp` add a per-rule cache
+of the immutable `PatternInfo` descriptions for reactant and product graphs.
+The cache is built during `initialize()` and reused by embedding searches,
+reaction construction, and delete-molecule handling, eliminating repeated
+metadata allocations without changing graph ownership, match ordering, or
+operation data. The out-of-line destructor and move operations keep the
+opaque cache type portable across translation units.
+
 The focused regression in `tests/ast/test_SpeciesList.cpp` covers two species
 with identical structure but different molecule compartments, exact duplicate
 reuse, and the resulting list size. The empty-graph test covers the
-canonicalization guard needed by the validated build.
+canonicalization guard needed by the validated build. The existing
+`tests/ast/test_network_generator.cpp` path also reinitializes and moves a
+`ReactionRule` into a model before checking generated species/reaction counts,
+covering the cached rule metadata's lifecycle.
 
 ## Correctness evidence
 
-For all 20 repetitions of all four workloads, the candidate and baseline
-output-hash maps were identical. The resulting deterministic artifacts had
-these stable hashes:
+For all 20 repetitions of all four workloads in the first retained comparison,
+the candidate and baseline output-hash maps were identical. For all 40
+repetitions in the metadata-cache comparison, the cache candidate and the
+retained executable also had identical output-hash maps, sizes, and network
+counts. The resulting deterministic artifacts had these stable hashes:
 
 ```text
 blbr.net                         f983ce459044a975daa8ddf68b74cba694117cc56f03047dfadee4c904795bc2
@@ -257,13 +310,13 @@ were compared directly with the retained candidate:
 | Safety-gated exact-key handoff (canonical graphs only) | +0.625% / +0.513%, +0.078% / -0.031%, +0.548% / +0.637%, -0.188% / -0.193% | reject: noise-level/slower; no material matrix win |
 | Fingerprint lookup before canonical labeling | -0.535% / -0.541%, +3.241% / +4.009%, +0.133% / +0.195%, -0.460% / -0.366% | reject: `blbr` CPU regression; no broad win |
 
-The remaining profile-dominant CPU work is canonical labeling/Nauty and related
-graph/string operations inside rule expansion and species deduplication. ODE
-integration is another dominant cost for ODE-heavy models such as FcERI. A
-further material gain in those areas would require a broader canonicalization
-and deduplication data-structure redesign, parallel/GPU execution, or a
-different-language implementation; those are outside this portable,
-semantics-preserving scope.
+The remaining profile-dominant CPU work after both retained changes is
+canonical labeling/Nauty and related graph/string operations inside rule
+expansion and species deduplication. ODE integration is another dominant cost
+for ODE-heavy models such as FcERI. A further material gain in those areas
+would require a broader canonicalization and deduplication data-structure
+redesign, parallel/GPU execution, or a different-language implementation;
+those are outside this portable, semantics-preserving scope.
 
 ## Validation commands and status
 
@@ -272,6 +325,7 @@ Targeted tests and the full Release CTest suite were run on the candidate:
 ```sh
 build-codex/tests/test_SpeciesList
 build-codex/tests/test_pattern_graph
+build-codex/tests/test_network_generator
 ctest --test-dir build-codex --output-on-failure --parallel 4
 ```
 
