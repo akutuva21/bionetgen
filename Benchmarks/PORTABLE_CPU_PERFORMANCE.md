@@ -6,12 +6,14 @@ This series targets the native C++ network-generation path used by production
 models in `bng2/Models2`. It does not optimize a synthetic microbenchmark, alter
 the CLI, change generated-file formats, or add an external dependency.
 
-The retained optimization is `533ac26b` (`perf: skip canonical labels for
-exact product duplicates`). On the paired production matrix, the median
-end-to-end wall-time change was negative for every workload, with median CPU
-time reductions of 2.189% to 4.177%. The small `blbr` case is close enough to
-the noise floor that it is reported as a workload limitation; the medium and
-large cases provide the material evidence for retaining the change.
+The retained optimization is the two-commit implementation in `533ac26b`
+(`perf: skip canonical labels for exact product duplicates`) and `92ca4c03`
+(`perf: preserve canonical product ordering in exact dedup fast path`). On the
+paired production matrix, median end-to-end wall-time changes ranged from
+-0.172% to -6.903%, and median CPU-time changes ranged from -0.215% to
+-6.875%. The small `blbr` case is close enough to the noise floor that it is
+reported as a workload limitation; the medium and large cases provide the
+material evidence for retaining the change.
 
 The branch also contains two correctness/build-enablement fixes and focused
 tests:
@@ -34,12 +36,12 @@ upstream/master at synchronization: 43ddf3afe165192a222fd13e4917a1902ffe3446
 origin/master at synchronization:   b00410628484f639efbf294f8a150f21c4e8bb29
 working branch:                      codex/portable-cpu-20260831
 baseline source:                     46da45c4
-candidate source:                    533ac26b
+candidate source:                    92ca4c03
 ```
 
 `git pull --ff-only origin master` was run before creating the dedicated
-branch. At the final source audit, the branch was four commits ahead of
-`origin/master` and seven commits ahead of `upstream/master`. The previously
+branch. At the candidate-source audit, the branch was six commits ahead of
+`origin/master` and nine commits ahead of `upstream/master`. The previously
 dirty files and explicitly listed untracked file were cleared at the user's
 request before this series began; the final tree is required to be clean.
 
@@ -107,19 +109,19 @@ hashes. Twenty paired repetitions were used per model:
 ```sh
 python3 Benchmarks/portable_cpu_benchmark.py \
   --executable-a /private/tmp/bng_cpp-baseline-46da45c4 \
-  --executable-b /private/tmp/bng_cpp-candidate-no-second-final \
+  --executable-b /private/tmp/bng_cpp-candidate-exact-precheck-move \
   --model bng2/Models2/blbr.bngl \
   --model bng2/Models2/SHP2_base_model.bngl \
   --model bng2/Models2/egfr_net.bngl \
   --model bng2/Models2/fceri_ji.bngl \
   --repetitions 20 --timeout 30 \
-  --output /private/tmp/portable_cpu_final_committed_20.json
+  --output /private/tmp/portable_cpu_exact_precheck_move_20.json
 ```
 
 The baseline executable SHA-256 was
 `ece7a09b247a2a8eb95dbaa26db7427aa0e5d0772f5b7b8097a6d36aa404399a`; the
 candidate executable SHA-256 was
-`b48ee3bf7cc5ab2f221f74817c5c5d6dcd1cb74e4a8b4233cb0caed2502aa997`.
+`a59ed4dc4ff5becf347b95f1915c6ddaf60bc54d4bb84a0160ae60a737d2a9a2`.
 CPU time and RSS use Python `resource.getrusage` because `/usr/bin/time -l`
 cannot read the required macOS counters in the sandbox.
 
@@ -129,34 +131,37 @@ median deltas. IQR and min/max are the paired percentage spread.
 
 | Workload | Outputs: bytes; data rows | Wall baseline -> candidate (s) | Paired wall delta: median [IQR; min..max] | CPU baseline -> candidate (s) | Paired CPU delta: median [IQR; min..max] |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `blbr` | 5,112; N/A | 0.023465 -> 0.022803 | -2.485% [-5.388..+0.010; -7.318..+15.641] | 0.022277 -> 0.021774 | -2.189% [-5.080..+0.094; -7.933..+14.746] |
-| `SHP2_base_model` | 343,261; 202 | 0.164372 -> 0.154803 | -5.534% [-6.830..-2.895; -11.842..+6.140] | 0.162745 -> 0.153166 | -5.430% [-6.779..-3.369; -11.258..+4.601] |
-| `egfr_net` | 549,606; 102 | 0.581370 -> 0.554530 | -4.172% [-5.728..-3.129; -12.009..-0.153] | 0.578498 -> 0.552434 | -4.177% [-5.720..-3.162; -11.333..-0.144] |
-| `fceri_ji` | 233,656; 22 | 0.658142 -> 0.636508 | -3.624% [-4.526..-2.227; -12.055..+9.517] | 0.656252 -> 0.634688 | -3.618% [-4.516..-2.305; -11.838..-1.313] |
+| `blbr` | 5,112; N/A | 0.024501 -> 0.024358 | -0.172% [-0.832..+0.522; -6.923..+1.550] | 0.023071 -> 0.022978 | -0.215% [-1.369..+0.641; -7.116..+2.146] |
+| `SHP2_base_model` | 343,261; 202 | 0.164564 -> 0.153212 | -6.903% [-7.483..-6.295; -8.662..-5.533] | 0.162525 -> 0.151263 | -6.875% [-7.499..-6.347; -8.610..-5.610] |
+| `egfr_net` | 549,606; 102 | 0.582642 -> 0.566102 | -2.985% [-3.502..-2.451; -5.289..-1.055] | 0.579735 -> 0.563011 | -2.957% [-3.724..-2.491; -5.374..-1.218] |
+| `fceri_ji` | 233,656; 22 | 0.665730 -> 0.638934 | -3.938% [-4.338..-3.769; -5.251..-2.903] | 0.662634 -> 0.636178 | -3.944% [-4.311..-3.755; -5.227..-2.907] |
 
-Paired wall/CPU wins were respectively 15/20 and 15/20 for `blbr`, 18/20
-and 18/20 for `SHP2`, 20/20 and 20/20 for `egfr_net`, and 19/20 and 20/20
-for `fceri_ji`. Median maximum-RSS deltas were -0.581%, -0.188%, +0.581%,
-and +0.186% in the same workload order. The large workloads therefore show
-repeatable CPU and wall-time reductions; `blbr` is retained only as a small
-correctness/noise check, not as the performance justification.
+Paired wall/CPU wins were respectively 11/20 and 11/20 for `blbr`, 20/20
+and 20/20 for `SHP2`, 20/20 and 20/20 for `egfr_net`, and 20/20 and 20/20
+for `fceri_ji`. Median maximum-RSS deltas were -0.146%, -0.610%, +0.379%,
+and +0.062% in the same workload order. The medium and large workloads
+therefore show repeatable CPU and wall-time reductions; `blbr` is retained
+only as a small correctness/noise check, not as the performance justification.
 
 ## Mechanism changed
 
-`src/ast/SpeciesList.cpp` now computes the compartment-aware exact string key
-before canonical labeling and checks the exact-key index first. Product graphs
-that are exact duplicates consequently return without paying for canonical
-labeling. Canonical labeling remains in the fallback path. For species with a
-species-level compartment, the deduplication string is recomputed after
-canonicalization because serialization can depend on canonical node ordering;
-unscoped species retain the pre-label exact key and existing canonical-label
-and structural-fingerprint fallbacks.
+`src/ast/SpeciesList.cpp` now exposes an exact-key lookup that checks the
+compartment-aware string index without canonicalizing the graph. The existing
+`add` path also checks that exact key before canonical labeling. Canonical
+labeling remains in the fallback path. For species with a species-level
+compartment, the deduplication string is recomputed after canonicalization
+because serialization can depend on canonical node ordering; unscoped species
+retain the pre-label exact key and existing canonical-label and
+structural-fingerprint fallbacks.
 
-`src/ast/ReactionRule.cpp` now inserts a product into `SpeciesList` before
-requesting its canonical label and obtains the label from the stored graph.
-This removes the eager product-graph label call on duplicate products in the
-synthesis and product-building paths while preserving the labels used for
-reaction sorting and output.
+`src/ast/ReactionRule.cpp` moves each product graph into a temporary `Species`,
+probes the exact key, and returns the existing cached label immediately for an
+exact duplicate. Only an exact-key miss canonicalizes the owned graph before
+insertion, preserving the original canonical product ordering for non-duplicate
+products. Labels are then read from the stored graph, preserving reaction
+sorting and output. This ordering is important: an earlier prototype that
+passed an uncanonicalized copy into `SpeciesList` timed out on
+`Motivating_example_cBNGL` and was not retained.
 
 The focused regression in `tests/ast/test_SpeciesList.cpp` covers two species
 with identical structure but different molecule compartments, exact duplicate
@@ -211,16 +216,17 @@ above were independently parsed from both `.net` files.
 
 ## Profiles and rejected alternatives
 
-The baseline macOS `sample` profile for an EGFR network-generation run
+The baseline macOS `sample` profile for repeated EGFR network-generation runs
 captured 5 seconds and 5,648 samples. The dominant stack was
 `ActionDispatch::execute` (3,295), `NetworkGenerator::generate` (3,015),
 `NetworkGenerator::generateNative` (3,013), and
 `ReactionRule::expandRule` (1,175). `SpeciesList::add`, canonical labeling,
 `find_canonical_order`, and BNG2-string serialization were visible below that
-stack. A final-candidate profile captured 5 seconds and 3,615 samples, with
-the same dominant stack: `NetworkGenerator::generateNative` (2,980),
-`ReactionRule::expandRule` (1,104), `SpeciesList::add` (173), and canonical
-label calls nested in the species-add path. The FcERI profile likewise showed
+stack. A direct final-candidate EGFR profile captured the same stack during
+the run: `ActionDispatch::execute` (248 samples),
+`NetworkGenerator::generateNative` (223), `ReactionRule::expandRule` (81),
+`SpeciesList::add` (at least 9 samples in its top path), and canonical-label
+calls nested in product construction. The FcERI profile likewise showed
 network generation as the relevant generation hotspot, while its full run was
 also dominated by the ODE solver.
 
@@ -272,5 +278,17 @@ ctest --test-dir /private/tmp/bng-build-asan --output-on-failure --parallel 4
 
 The sanitizer suite passed 80/80, and separate ASan/UBSan production runs of
 all four models exited successfully without sanitizer diagnostics. GitHub CI
-must still be checked against the exact pushed final branch SHA; that external
-result is intentionally not inferred from local test results.
+must still be checked against the exact pushed final branch SHA; the branch
+workflows trigger only on `master` pushes or pull requests, so a branch push
+alone does not create a run.
+
+The repository script `scripts/validate_cpp_against_perl.sh` was also run over
+all 41 available reference models for both executables using a temporary
+macOS-compatible `timeout` shim (GNU `timeout` is not installed here). The
+baseline and final candidate each produced 34 passes and 7 failures, with the
+same failure set: the SHP2/blbr reaction-count mismatches, missing NFsim for
+`isingspin_localfcn`, missing companion `.net` for `michment_cont`, unsupported
+XML `readFile` in two SBML cases, and the missing `f_correct` parameter in
+`test_time`. Thus the corrected optimization did not widen the repository
+validation failure footprint. These are reported rather than silently treated
+as green.
