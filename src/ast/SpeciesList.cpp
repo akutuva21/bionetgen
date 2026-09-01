@@ -58,10 +58,9 @@ std::pair<std::size_t, bool> SpeciesList::add(Species species) {
         return {index, true};
     }
 
-    const std::string label = species.getSpeciesGraph().canonicalLabel();
     // Use compartment-aware string for dedup to distinguish species that differ
     // only by per-molecule compartments (e.g., Im@CP.NP vs Im@NU.NP).
-    const std::string exact = species.getSpeciesGraph().toStringForDedup();
+    std::string exact = species.getSpeciesGraph().toStringForDedup();
 
     // Fast path 1: exact string match (O(1))
     const auto exactBucket = indicesByExactString_.find(exact);
@@ -76,6 +75,21 @@ std::pair<std::size_t, bool> SpeciesList::add(Species species) {
             }
             return {index, false};
         }
+    }
+
+    // Canonical labeling is substantially more expensive than exact string
+    // serialization.  Only compute it after the exact-key fast path misses;
+    // product graphs are frequently exact duplicates of an existing species.
+    const std::string label = species.getSpeciesGraph().canonicalLabel();
+    // Canonical labeling may change node-index tie breakers used by the
+    // serializer, so use the canonicalized key for all fallback and insert
+    // paths for compartmented species. For unscoped species, the canonical
+    // label and structural fingerprint are the authoritative fallback keys;
+    // retaining the pre-label exact key avoids serializing every new species a
+    // second time. Exact hits returned above do not need this second
+    // serialization.
+    if (!species.getCompartment().empty()) {
+        exact = species.getSpeciesGraph().toStringForDedup();
     }
 
     // Fast path 2: canonical label match (O(1))

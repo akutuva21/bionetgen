@@ -1465,8 +1465,8 @@ std::size_t ReactionRule::expandRule(
                 if (productFilter && !productFilter(sg)) {
                     return 0;
                 }
-                productLabels.push_back(sg.canonicalLabel());
                 const auto [index, isNew] = speciesList.add(Species(sg, 0.0, false, productPattern.getCompartment()));
+                productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
                 productIndices.push_back(index);
             }
             std::sort(productLabels.begin(), productLabels.end());
@@ -2332,7 +2332,6 @@ bool ReactionRule::buildReaction(
                 if (productFilter && !productFilter(productGraph)) {
                     return false;
                 }
-                productLabels.push_back(productGraph.canonicalLabel());
                 std::string compartmentToUse;
                 if (!g_compartmentDimensions.empty()) {
                     std::set<std::string> surfaces, volumes;
@@ -2365,6 +2364,7 @@ bool ReactionRule::buildReaction(
                 }
                 auto prodSp = Species(productGraph, 0.0, false, compartmentToUse);
                 const auto [index, wasNew] = speciesList.add(std::move(prodSp));
+                productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
                 productIndices.push_back(index);
             }
         }
@@ -2535,7 +2535,6 @@ bool ReactionRule::buildReaction(
             if (productFilter && !productFilter(productGraph)) {
                 return false;
             }
-            productLabels.push_back(productGraph.canonicalLabel());
             // Perl-faithful inferSpeciesCompartment (SpeciesGraph.pm:795-893):
             // Collect unique 2D surfaces and 3D volumes from molecule compartments.
             // 0 surfaces: 1 volume → that volume; 0 volumes → undefined; >1 → first alphabetically
@@ -2625,6 +2624,7 @@ bool ReactionRule::buildReaction(
             // (Product pattern bond constraint check would go here in a future version)
             auto prodSp = Species(productGraph, 0.0, false, compartmentToUse);
             const auto [index, wasNew] = speciesList.add(std::move(prodSp));
+            productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
             productIndices.push_back(index);
         }
     }
@@ -2825,6 +2825,5 @@ bool ReactionRule::passesProductFilters(const std::vector<SpeciesGraph>& product
 }
 
 } // namespace bng::ast
-
 
 
