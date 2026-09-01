@@ -125,6 +125,7 @@ This PR resolves the high-confidence cases **#328, #327, #326, #314, #217, #298,
 
 - `git pull --ff-only --autostash`: already up to date.
 - Upstream source snapshot: fetched `RuleWorld/master` at `43ddf3af` into an isolated worktree so local fork changes did not alter legacy-source conclusions.
+- Before final PR readback, merged current upstream `master` (`604467d6`) into the issues branch; the merge had one whitespace-only conflict in `src/ast/ReactionRule.cpp` and was revalidated below.
 - Native issue branch: `cmake --build build --target bng_cpp test_node_operator -j2` passed.
 - Native issue branch regression set: full `ctest --test-dir build --output-on-failure` passed **86/86**; `test_node_operator` passed **12 assertions**.
 - Added regression tests: #328 action error exit status; #326 `blbr` parity; #217 bounded cycle diagnostic; #234 escaped PatternQuantifier XML; #312 both spaced and unspaced `MatchOnce` forms; #295 `~=`/`~` CVODE export; #112 console STDERR routing; #90 implicit-bond symmetry factor.
