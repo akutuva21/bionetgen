@@ -374,3 +374,25 @@ explicitly directed that no pull request be opened against `RuleWorld` and no
 fork default-branch push be made. The final branch was pushed only to the
 fork; local Release, independent-reference, full-harness, and ASan/UBSan
 evidence above are the available validation for this no-PR delivery.
+
+## Separate GPU track
+
+The existing `codex/gpu-optin-20260901` branch retains no GPU source because
+the measured path did not reach an end-to-end, semantics-preserving win. A
+host-level Metal runtime probe succeeded on the pinned machine:
+
+```text
+device=Apple M5 Pro status=4 value=2046
+```
+
+The installed CommandLineTools do not provide the offline `metal` compiler:
+`xcrun --find metal` returned `unable to find utility "metal"`. A temporary
+opt-in ODE experiment used runtime Metal compilation behind
+`BNG_ENABLE_METAL=ON` and `BNG_METAL_ODE=1`; the C++ integration built, but the
+Metal shader compiler rejected the required `double` kernel types. A float
+fallback would change the numerical/artifact contract, and the pointer-heavy
+canonical/Nauty representation is not a device-ready regular kernel. No
+GPU timing or source change is therefore retained. A material GPU result
+requires a device-compatible numeric representation, solver integration, and
+an independent end-to-end workload benchmark; it remains outside this CPU
+branch and is not presented as an optimization.
