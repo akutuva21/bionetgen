@@ -77,5 +77,12 @@ TEST_CASE("SpeciesList preserves compartment-aware deduplication", "[ast][Specie
     REQUIRE(exact.has_value());
     REQUIRE(exact.value() == first.first);
     REQUIRE_FALSE(probe.getSpeciesGraph().getGraph().is_canonical());
-    REQUIRE(list.size() == 2);
+
+    Species distinct = makeSpecies("MITO");
+    std::string exactKey;
+    REQUIRE_FALSE(list.findExact(distinct, exactKey).has_value());
+    REQUIRE_FALSE(exactKey.empty());
+    const auto keyed = list.addWithExactKey(std::move(distinct), std::move(exactKey));
+    REQUIRE(keyed.second);
+    REQUIRE(list.size() == 3);
 }
