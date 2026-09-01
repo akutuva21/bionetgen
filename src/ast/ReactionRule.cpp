@@ -2871,4 +2871,3 @@ bool ReactionRule::passesProductFilters(const std::vector<SpeciesGraph>& product
 }
 
 } // namespace bng::ast
-
