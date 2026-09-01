@@ -540,3 +540,49 @@ The raw recheck is `/private/tmp/portable_cpu_ode_recheck_10.json`. This
 short run confirms the same solver-dominated behavior; the earlier 40-pair
 matrix remains the performance decision because the recheck is only a drift
 check and not a replacement for its spread.
+
+## Solver-aware reaction J-times screen
+
+As a broader solver experiment, a temporary opt-in
+`BNG_CVODE_REACTION_JV=1` path supplied CVODE with a compact reaction-level
+mass-action Jacobian-vector product. The implementation was compiled and
+focused-tested, then removed because it is not valid for the general
+functional-rate model and did not preserve the output contract on the full
+matrix. The benchmark used the retained ODE executable as baseline and a
+wrapper that only set the opt-in environment variable:
+
+```sh
+python3 Benchmarks/portable_cpu_benchmark.py \
+  --executable-a /private/tmp/bng-final-ode-20260901/src/bng_cpp \
+  --executable-b /private/tmp/bng-reaction-jv-wrapper \
+  --model bng2/Models2/blbr.bngl \
+  --model bng2/Models2/SHP2_base_model.bngl \
+  --model bng2/Models2/egfr_net.bngl \
+  --model bng2/Models2/fceri_ji.bngl \
+  --repetitions 10 --timeout 30 \
+  --output /private/tmp/portable_cpu_ode_reaction_jv_screen_10.json
+```
+
+The baseline executable SHA-256 was
+`0be9540ea0a07a3ad17ca463a963b15479ae07773c796e91e8ec2621c45d5b52`; the
+wrapper SHA-256 recorded by the runner was
+`a808087ef9e7fa2dfbf884b8145d0a9a598ac5cd1bd809ecf8b26701beccd7b0` and the
+underlying temporary candidate binary was
+`c647fb192bde2be9626a605ae0d2c3cea40d2668da28d97a58df20d9b083cec0`.
+Reductions are baseline-minus-candidate, positive when faster; brackets are
+inclusive IQRs:
+
+| Workload | Wall reduction (median [IQR], %) | CPU-user reduction (median [IQR], %) | RSS reduction (median [IQR], %) | Artifacts |
+| --- | ---: | ---: | ---: | --- |
+| `blbr` | -11.410 [6.627] | -4.149 [5.559] | -0.807 [0.659] | equal |
+| `SHP2_base_model` | -2.380 [1.903] | -1.006 [2.303] | -0.516 [0.492] | equal |
+| `egfr_net` | -1.330 [1.520] | -1.009 [1.414] | -0.076 [0.657] | changed |
+| `fceri_ji` | -6.330 [2.723] | -6.226 [2.669] | +0.339 [0.631] | changed |
+
+The candidate was slower in the median wall and CPU measurements for every
+model, and its deterministic output hash differed for EGFR and FcERI. This
+rejects a local reaction-level J-times shortcut. The profile-dominant
+`cvLsDQJtimes`/SPGMR work remains coupled to general rate evaluation,
+Jacobian approximation, and preconditioning; a material semantics-preserving
+gain requires a solver-aware Jacobian/preconditioner and reaction-network
+representation redesign. No temporary solver implementation is retained.
