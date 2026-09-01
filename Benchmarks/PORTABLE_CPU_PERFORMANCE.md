@@ -513,3 +513,30 @@ design that supports general functional rates; an opt-in GPU implementation
 would need the same representation to remain device-resident. No such source
 change is retained here, and no parallel/GPU change is mixed into the CPU
 optimization branches.
+
+## Current CVODE hotspot re-audit
+
+The retained ODE executable was re-profiled on the pinned production
+`fceri_ji` model on 2026-09-01 using a fresh 2-second macOS `sample` capture
+(`/private/tmp/bng-hotspot-recheck.KqmjIE/ode-fceri.sample`). The dominant
+stack was `OdeIntegrator::integrateCvode` (220 samples), `CVode` (216),
+`SUNLinSolSolve_SPGMR` (158), `cvLsDQJtimes` (149), and
+`OdeIntegrator::derivs` (149). The run reproduced the pinned network,
+trajectory, and data hashes for `fceri_ji`.
+
+A fresh 10-pair all-model sanity recheck used the retained ODE executable
+(`0be9540ea0a07a3ad17ca463a963b15479ae07773c796e91e8ec2621c45d5b52`) against
+the CPU baseline. Reductions are positive when the candidate is faster; all
+four models had equal output hashes, sizes, and network counts:
+
+| Workload | ODE wall reduction | ODE CPU reduction |
+| --- | ---: | ---: |
+| `blbr` | +1.350% | +1.126% |
+| `SHP2_base_model` | +2.002% | +1.932% |
+| `egfr_net` | -0.553% | -0.496% |
+| `fceri_ji` | +3.881% | +3.732% |
+
+The raw recheck is `/private/tmp/portable_cpu_ode_recheck_10.json`. This
+short run confirms the same solver-dominated behavior; the earlier 40-pair
+matrix remains the performance decision because the recheck is only a drift
+check and not a replacement for its spread.
