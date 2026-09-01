@@ -208,6 +208,7 @@ void OdeIntegrator::compile() {
     }
 
     std::size_t rxnIndex = 0;
+    std::string lowerRawRL; // Hoisted string buffer to prevent repeated allocations in the loop
     for (const auto& rxn : network_.reactions.all()) {
         CompiledReaction crxn;
         crxn.reactantIndices = rxn.getReactants();
@@ -539,7 +540,6 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
-        std::string lowerRawRL;
         bool hasLowerRawRL = false;
 
         auto ensureLowerRawRL = [&]() {
@@ -1210,10 +1210,9 @@ OdeResult OdeIntegrator::integrateEuler(const OdeOptions& opts) {
 
                 auto resolver = [&](const std::string& name) -> double {
                     if (name == "time") return t;
-                    for (std::size_t g = 0; g < compiledGroups_.size(); ++g) {
-                        if (compiledGroups_[g].name == name) {
-                            return groupValues[g];
-                        }
+                    auto it = observableIndex_.find(name);
+                    if (it != observableIndex_.end()) {
+                        return groupValues[it->second];
                     }
                     return model_.getParameters().evaluate(name);
                 };
@@ -1313,10 +1312,9 @@ OdeResult OdeIntegrator::integrateRK4(const OdeOptions& opts) {
 
                 auto resolver = [&](const std::string& name) -> double {
                     if (name == "time") return t;
-                    for (std::size_t g = 0; g < compiledGroups_.size(); ++g) {
-                        if (compiledGroups_[g].name == name) {
-                            return groupValues[g];
-                        }
+                    auto it = observableIndex_.find(name);
+                    if (it != observableIndex_.end()) {
+                        return groupValues[it->second];
                     }
                     return model_.getParameters().evaluate(name);
                 };
@@ -1672,10 +1670,9 @@ OdeResult OdeIntegrator::integrateCvode(const OdeOptions& opts) {
 
             auto resolver = [&](const std::string& name) -> double {
                 if (name == "time") return tOut;
-                for (std::size_t g = 0; g < compiledGroups_.size(); ++g) {
-                    if (compiledGroups_[g].name == name) {
-                        return groupValues[g];
-                    }
+                auto it = observableIndex_.find(name);
+                if (it != observableIndex_.end()) {
+                    return groupValues[it->second];
                 }
                 return model_.getParameters().evaluate(name);
             };
@@ -1980,8 +1977,9 @@ OdeResult OdeIntegrator::integrateCvodesForwardSens(const OdeOptions& opts) {
             updateGroups(conc.data(), groupValues);
             auto resolver = [&](const std::string& name) -> double {
                 if (name == "time") return tOut;
-                for (std::size_t g = 0; g < compiledGroups_.size(); ++g) {
-                    if (compiledGroups_[g].name == name) return groupValues[g];
+                auto it = observableIndex_.find(name);
+                if (it != observableIndex_.end()) {
+                    return groupValues[it->second];
                 }
                 return model_.getParameters().evaluate(name);
             };
