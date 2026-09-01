@@ -84,6 +84,54 @@ TEST_CASE("OdeIntegrator handles destruction", "[OdeIntegrator]") {
     REQUIRE_NOTHROW(integrator.reset());
 }
 
+TEST_CASE("OdeIntegrator preserves case-insensitive rate classification", "[OdeIntegrator]") {
+    auto makeNetwork = [](const std::string& rateLaw) {
+        GeneratedNetwork network;
+        network.species.setCheckIso(false);
+
+        bng::ast::SpeciesGraph reactantGraph;
+        network.species.add(bng::ast::Species(reactantGraph, 1.0));
+
+        bng::ast::SpeciesGraph productGraph;
+        network.species.add(bng::ast::Species(productGraph, 0.0));
+
+        network.reactions.add(bng::ast::Rxn(
+            "R1", {0}, {1}, rateLaw, 1.0, "dummy_rule",
+            bng::ast::Expression::number(2.0)));
+        return network;
+    };
+
+    SECTION("time keyword casing remains functional") {
+        for (const auto& rateLaw : {std::string("time"), std::string("TIME"), std::string("Time")}) {
+            bng::ast::Model model;
+            auto network = makeNetwork(rateLaw);
+            OdeIntegrator integrator(model, network);
+
+            double state[] = {1.0, 0.0};
+            double derivatives[] = {0.0, 0.0};
+            integrator.derivs(0.0, state, derivatives);
+
+            REQUIRE_THAT(derivatives[0], Catch::Matchers::WithinAbs(-2.0, 1e-12));
+            REQUIRE_THAT(derivatives[1], Catch::Matchers::WithinAbs(2.0, 1e-12));
+        }
+    }
+
+    SECTION("mixed-case function names are matched without lowercasing") {
+        bng::ast::Model model;
+        model.addFunction(bng::ast::Function(
+            "rateFn", {}, bng::ast::Expression::number(1.0)));
+        auto network = makeNetwork("RATEFN");
+        OdeIntegrator integrator(model, network);
+
+        double state[] = {1.0, 0.0};
+        double derivatives[] = {0.0, 0.0};
+        integrator.derivs(0.0, state, derivatives);
+
+        REQUIRE_THAT(derivatives[0], Catch::Matchers::WithinAbs(-2.0, 1e-12));
+        REQUIRE_THAT(derivatives[1], Catch::Matchers::WithinAbs(2.0, 1e-12));
+    }
+}
+
 TEST_CASE("OdeIntegrator handles cvode simulation", "[OdeIntegrator]") {
     bng::ast::Model model;
     GeneratedNetwork network;

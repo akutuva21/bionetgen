@@ -1,6 +1,7 @@
 #include "OdeIntegrator.hpp"
 
 #include <algorithm>
+#include <cctype>
 
 #include <cmath>
 #include <fstream>
@@ -124,8 +125,6 @@ bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
     }
     return false;
 }
-
-
 
 } // anonymous namespace
 
@@ -540,9 +539,21 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
+        std::string lowerRawRL;
+        bool hasLowerRawRL = false;
+
+        auto ensureLowerRawRL = [&]() {
+            if (!hasLowerRawRL) {
+                lowerRawRL = rawRateLaw;
+                std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+                hasLowerRawRL = true;
+            }
+        };
+
+        bool checkedFunctions = false;
+
         if (!isFunctional && rateExpr.has_value()) {
-            std::string lowerRawRL = rawRateLaw;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+            ensureLowerRawRL();
             std::string timeStr = "time";
             if (lowerRawRL.find(timeStr) != std::string::npos) {
                 isFunctional = true;
@@ -568,6 +579,7 @@ void OdeIntegrator::compile() {
                         break;
                     }
                 }
+                checkedFunctions = true;
             }
 
             if (isFunctional) {
@@ -592,10 +604,8 @@ void OdeIntegrator::compile() {
             }
         }
 
-        if (!crxn.isFunctional) {
-            const std::string rawRL = rxn.getRateLaw();
-            std::string lowerRawRL = rawRL;
-            std::transform(lowerRawRL.begin(), lowerRawRL.end(), lowerRawRL.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (!crxn.isFunctional && !checkedFunctions) {
+            ensureLowerRawRL();
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
@@ -606,7 +616,7 @@ void OdeIntegrator::compile() {
                     // compound expressions like "k * funcName()" are preserved.
                     ast::Expression funcExpr2 = ast::Expression::number(0.0);
                     try {
-                        funcExpr2 = parser::parseExpression(rawRL);
+                        funcExpr2 = parser::parseExpression(rawRateLaw);
                     } catch (...) {
                         // Fallback: use bare identifier if parsing fails
                         funcExpr2 = ast::Expression::identifier(func.getName());

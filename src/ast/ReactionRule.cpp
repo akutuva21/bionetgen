@@ -823,6 +823,18 @@ bool verifyBondTopology(const BNGcore::PatternGraph& graph) {
 
 } // namespace
 
+// Pattern metadata points into the immutable rule pattern graphs. Keeping it
+// per rule avoids rebuilding the same molecule/component descriptions for
+// every embedding search and generated reaction.
+struct ReactionRule::PatternCache {
+    std::vector<PatternInfo> reactantInfo;
+    std::vector<PatternInfo> productInfo;
+};
+
+ReactionRule::~ReactionRule() = default;
+ReactionRule::ReactionRule(ReactionRule&&) noexcept = default;
+ReactionRule& ReactionRule::operator=(ReactionRule&&) noexcept = default;
+
 bool ReactionRule::ComponentRef::operator==(const ComponentRef& other) const {
     return std::tie(patternIndex, moleculeIndex, componentIndex) ==
            std::tie(other.patternIndex, other.moleculeIndex, other.componentIndex);
@@ -897,6 +909,10 @@ const std::vector<ReactionRule::TransformOp>& ReactionRule::getOperations() cons
 }
 
 void ReactionRule::initialize() {
+    patternCache_ = std::make_unique<PatternCache>();
+    patternCache_->reactantInfo = describePatterns(reactantPatterns_);
+    patternCache_->productInfo = describePatterns(productPatterns_);
+
     operations_.clear();
     productOnlyStateChanges_.clear();
     hasMoleculeTypeMismatch_ = false;
@@ -907,8 +923,8 @@ void ReactionRule::initialize() {
         return;
     }
 
-    const auto reactantInfo = describePatterns(reactantPatterns_);
-    const auto productInfo = describePatterns(productPatterns_);
+    const auto& reactantInfo = patternCache_->reactantInfo;
+    const auto& productInfo = patternCache_->productInfo;
     const auto reactantMolecules = flattenMolecules(reactantInfo);
     const auto productMolecules = flattenMolecules(productInfo);
 
@@ -1226,7 +1242,7 @@ std::vector<ReactionRule::EmbeddingResult> ReactionRule::findEmbeddingsForSpecie
     const Model* model) const {
     std::vector<EmbeddingResult> results;
     const auto& pattern = reactantPatterns_.at(patternIndex).getGraph();
-    const auto reactantInfo = describePatterns(reactantPatterns_);
+    const auto& reactantInfo = patternCache_->reactantInfo;
     std::unordered_set<std::string> seen;
     const bool debug = std::getenv("BNG_DEBUG_EMBEDDINGS") != nullptr;
 
@@ -1465,8 +1481,16 @@ std::size_t ReactionRule::expandRule(
                 if (productFilter && !productFilter(sg)) {
                     return 0;
                 }
-                productLabels.push_back(sg.canonicalLabel());
-                const auto [index, isNew] = speciesList.add(Species(sg, 0.0, false, productPattern.getCompartment()));
+                auto product = Species(std::move(sg), 0.0, false, productPattern.getCompartment());
+                const auto exactIndex = speciesList.findExact(product);
+                std::size_t index;
+                if (exactIndex) {
+                    index = *exactIndex;
+                } else {
+                    product.getSpeciesGraph().canonicalLabel();
+                    index = speciesList.add(std::move(product)).first;
+                }
+                productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
                 productIndices.push_back(index);
             }
             std::sort(productLabels.begin(), productLabels.end());
@@ -1743,8 +1767,8 @@ bool ReactionRule::buildReaction(
     const std::function<bool(const SpeciesGraph&)>& productFilter,
     const Model* model) const {
     const bool debug = std::getenv("BNG_DEBUG_BUILD_RXN") != nullptr;
-    const auto reactantInfo = describePatterns(reactantPatterns_);
-    const auto productInfo = describePatterns(productPatterns_);
+    const auto& reactantInfo = patternCache_->reactantInfo;
+    const auto& productInfo = patternCache_->productInfo;
     std::vector<std::size_t> reactantIndices;
     reactantIndices.reserve(matchSet.size());
     std::string inferredCompartment;
@@ -2299,7 +2323,7 @@ bool ReactionRule::buildReaction(
             // should leave the other half of the complex as a product.
 
             // Delete matched molecules from aggregate graph
-            const auto reactantInfoLocal = describePatterns(reactantPatterns_);
+            const auto& reactantInfoLocal = patternCache_->reactantInfo;
             for (std::size_t pi = 0; pi < reactantPatterns_.size(); ++pi) {
                 for (const auto& molInfo : reactantInfoLocal[pi].molecules) {
                     auto* targetMol = matchSet[pi].map.mapf(molInfo.node);
@@ -2332,7 +2356,6 @@ bool ReactionRule::buildReaction(
                 if (productFilter && !productFilter(productGraph)) {
                     return false;
                 }
-                productLabels.push_back(productGraph.canonicalLabel());
                 std::string compartmentToUse;
                 if (!g_compartmentDimensions.empty()) {
                     std::set<std::string> surfaces, volumes;
@@ -2363,8 +2386,16 @@ bool ReactionRule::buildReaction(
                         }
                     }
                 }
-                auto prodSp = Species(productGraph, 0.0, false, compartmentToUse);
-                const auto [index, wasNew] = speciesList.add(std::move(prodSp));
+                auto prodSp = Species(std::move(productGraph), 0.0, false, compartmentToUse);
+                const auto exactIndex = speciesList.findExact(prodSp);
+                std::size_t index;
+                if (exactIndex) {
+                    index = *exactIndex;
+                } else {
+                    prodSp.getSpeciesGraph().canonicalLabel();
+                    index = speciesList.add(std::move(prodSp)).first;
+                }
+                productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
                 productIndices.push_back(index);
             }
         }
@@ -2535,7 +2566,6 @@ bool ReactionRule::buildReaction(
             if (productFilter && !productFilter(productGraph)) {
                 return false;
             }
-            productLabels.push_back(productGraph.canonicalLabel());
             // Perl-faithful inferSpeciesCompartment (SpeciesGraph.pm:795-893):
             // Collect unique 2D surfaces and 3D volumes from molecule compartments.
             // 0 surfaces: 1 volume → that volume; 0 volumes → undefined; >1 → first alphabetically
@@ -2623,8 +2653,16 @@ bool ReactionRule::buildReaction(
             // GPCR(l,b!1,loc~cyt,s~P).Arrestin(b!1) from applying to species where
             // GPCR has 'l' bonded: the product pattern says 'l' should be unbound.
             // (Product pattern bond constraint check would go here in a future version)
-            auto prodSp = Species(productGraph, 0.0, false, compartmentToUse);
-            const auto [index, wasNew] = speciesList.add(std::move(prodSp));
+            auto prodSp = Species(std::move(productGraph), 0.0, false, compartmentToUse);
+            const auto exactIndex = speciesList.findExact(prodSp);
+            std::size_t index;
+            if (exactIndex) {
+                index = *exactIndex;
+            } else {
+                prodSp.getSpeciesGraph().canonicalLabel();
+                index = speciesList.add(std::move(prodSp)).first;
+            }
+            productLabels.push_back(speciesList.get(index).getSpeciesGraph().canonicalLabel());
             productIndices.push_back(index);
         }
     }
@@ -2825,6 +2863,3 @@ bool ReactionRule::passesProductFilters(const std::vector<SpeciesGraph>& product
 }
 
 } // namespace bng::ast
-
-
-

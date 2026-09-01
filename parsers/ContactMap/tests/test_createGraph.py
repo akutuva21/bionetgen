@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import sys
 import os
 
@@ -28,6 +28,17 @@ class MockAtomic:
         self.molecules = molecules
 
 class TestCreateGraph(unittest.TestCase):
+    @patch('createGraph.shutil.which', return_value='/usr/bin/dot')
+    @patch('createGraph.subprocess.run')
+    def test_rendering_uses_absolute_graph_paths(self, mock_run, mock_which):
+        createGraph.renderGraph('/tmp/contact-map/input.xml')
+        mock_which.assert_called_once_with('dot')
+        mock_run.assert_called_once_with(
+            ['/usr/bin/dot', '-Tsvg', '/tmp/contact-map/input.xml.dot',
+             '-o', '/tmp/contact-map/input.xml.svg'],
+            check=True,
+            shell=False)
+
     def test_extractMolecules_empty(self):
         """Test with an empty chemical array."""
         atomicPatterns, reactionCenter, context = createGraph.extractMolecules('action', 'site1', 'site2', [])
