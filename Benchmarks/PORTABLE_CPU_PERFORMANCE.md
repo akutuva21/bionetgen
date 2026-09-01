@@ -460,3 +460,56 @@ preconditioner, or reaction-network storage redesign; an equivalent GPU path
 would require a broader device-resident integration design rather than a
 per-callback offload. Those changes are outside this portable, semantics-
 preserving branch.
+
+## CVODE J-times redesign screening
+
+Branch `codex/ode-jtimes-redesign-20260901` is based on the validated ODE tip
+`9c7c0aa3` and is pushed only to the fork. It retains no source change: the
+branch is an evidence checkpoint for the remaining CVODE hotspot. The pinned
+SUNDIALS source sets `SUNSPGMR_MAXL_DEFAULT` to 5, and its
+`cvLsDQJtimes` callback computes `Jv = [f(y + sig*v) - f(y)] / sig` with one
+right-hand-side evaluation per J-times call. The FcERI profile above therefore
+points to a solver-aware Jv/preconditioner or representation redesign, not a
+duplicate RHS call that can be removed locally.
+
+The plain CVODE path was screened with SPGMR `maxl` values 6, 8, and 10. Each
+screen used 20 paired repetitions over the same four production models, with
+the retained ODE executable as baseline (`0be9540ea0a07a3ad17ca463a963b15479ae07773c796e91e8ec2621c45d5b52`), alternating fresh processes and directories:
+
+```sh
+python3 Benchmarks/portable_cpu_benchmark.py \
+  --executable-a /private/tmp/bng-ode-flat-gated-reserved \
+  --executable-b /private/tmp/bng-ode-jtimes-maxlN/src/bng_cpp \
+  --model bng2/Models2/blbr.bngl \
+  --model bng2/Models2/SHP2_base_model.bngl \
+  --model bng2/Models2/egfr_net.bngl \
+  --model bng2/Models2/fceri_ji.bngl \
+  --repetitions 20 --timeout 30 \
+  --output /private/tmp/portable_cpu_ode_spgmr_maxlN_20.json
+```
+
+Here `N` was substituted with 6, 8, and 10. Candidate executable hashes were
+`becb5715e2f378b7a8ae4596c6be528393d23c6295fea1297dc550968fc43ad3`,
+`495ddb662afc449611d777326273df1919015d2068cbb52c19c434d535ba889f`, and
+`7daac850cf006cfe6f063b0f528bde0164f5a7895d269ea475751ead8e3a8875`,
+respectively. The table reports median wall/CPU reduction, defined as
+`100 * (baseline - candidate) / baseline`; positive means faster. IQRs are
+available in each raw JSON file.
+
+| SPGMR maxl | `blbr` wall/CPU | `SHP2` wall/CPU | `EGFR` wall/CPU | `FcERI` wall/CPU | Decision |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 6 | -2.826% / -1.367% | -0.484% / -0.565% | -0.537% / -0.617% | +0.548% / +0.513% | reject: broad regressions; FcERI hashes changed |
+| 8 | -0.109% / -0.054% | -0.420% / -0.410% | -0.096% / +0.075% | +5.133% / +5.160% | reject: FcERI hashes changed; no broad CPU win |
+| 10 | -0.491% / -0.403% | -0.024% / -0.046% | -0.435% / -0.282% | +4.640% / +4.632% | reject: FcERI hashes changed; other workloads slower |
+
+Network counts remained equal, but every FcERI candidate screen changed the
+deterministic output-hash map, so none satisfies the numerical/output
+preservation requirement. The screens also leave the smaller and medium
+workloads neutral or slower. Together with the rejected preconditioner and
+analytic mass-action J-times experiments above, this is evidence against
+retaining a local solver-parameter tweak. A material next CPU gain requires a
+broader solver-aware Jacobian/preconditioner and reaction-network storage
+design that supports general functional rates; an opt-in GPU implementation
+would need the same representation to remain device-resident. No such source
+change is retained here, and no parallel/GPU change is mixed into the CPU
+optimization branches.
