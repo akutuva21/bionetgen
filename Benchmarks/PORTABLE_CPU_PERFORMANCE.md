@@ -10,8 +10,8 @@ The retained optimization is the two-commit implementation in `533ac26b`
 (`perf: skip canonical labels for exact product duplicates`) and `92ca4c03`
 (`perf: preserve canonical product ordering in exact dedup fast path`). On the
 paired production matrix, median end-to-end wall-time changes ranged from
--0.172% to -6.903%, and median CPU-time changes ranged from -0.215% to
--6.875%. The small `blbr` case is close enough to the noise floor that it is
+-0.172% to -6.903%, and median CPU-time changes ranged from +0.081% to
+-7.288%. The small `blbr` case is close enough to the noise floor that it is
 reported as a workload limitation; the medium and large cases provide the
 material evidence for retaining the change.
 
@@ -36,7 +36,8 @@ upstream/master at synchronization: 43ddf3afe165192a222fd13e4917a1902ffe3446
 origin/master at synchronization:   b00410628484f639efbf294f8a150f21c4e8bb29
 working branch:                      codex/portable-cpu-20260831
 baseline source:                     46da45c4
-candidate source:                    92ca4c03
+retained performance source:         92ca4c03
+final source tree:                   e08a9bd2
 ```
 
 `git pull --ff-only origin master` was run before creating the dedicated
@@ -44,6 +45,11 @@ branch. At the candidate-source audit, the branch was six commits ahead of
 `origin/master` and nine commits ahead of `upstream/master`. The previously
 dirty files and explicitly listed untracked file were cleared at the user's
 request before this series began; the final tree is required to be clean.
+
+The final source tree includes the rejected exact-key experiment
+`70acc9e2` followed by `e08a9bd2`, which restores the retained implementation;
+the rejected experiment is documented below and is not present in the final
+source behavior.
 
 Input SHA-256 hashes:
 
@@ -118,7 +124,8 @@ python3 Benchmarks/portable_cpu_benchmark.py \
   --output /private/tmp/portable_cpu_exact_precheck_move_20.json
 ```
 
-The baseline executable SHA-256 was
+The final Release executable at `build-codex/src/bng_cpp` has the same SHA-256
+as the candidate artifact used above. The baseline executable SHA-256 was
 `ece7a09b247a2a8eb95dbaa26db7427aa0e5d0772f5b7b8097a6d36aa404399a`; the
 candidate executable SHA-256 was
 `a59ed4dc4ff5becf347b95f1915c6ddaf60bc54d4bb84a0160ae60a737d2a9a2`.
@@ -131,10 +138,10 @@ median deltas. IQR and min/max are the paired percentage spread.
 
 | Workload | Outputs: bytes; data rows | Wall baseline -> candidate (s) | Paired wall delta: median [IQR; min..max] | CPU baseline -> candidate (s) | Paired CPU delta: median [IQR; min..max] |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `blbr` | 5,112; N/A | 0.024501 -> 0.024358 | -0.172% [-0.832..+0.522; -6.923..+1.550] | 0.023071 -> 0.022978 | -0.215% [-1.369..+0.641; -7.116..+2.146] |
-| `SHP2_base_model` | 343,261; 202 | 0.164564 -> 0.153212 | -6.903% [-7.483..-6.295; -8.662..-5.533] | 0.162525 -> 0.151263 | -6.875% [-7.499..-6.347; -8.610..-5.610] |
-| `egfr_net` | 549,606; 102 | 0.582642 -> 0.566102 | -2.985% [-3.502..-2.451; -5.289..-1.055] | 0.579735 -> 0.563011 | -2.957% [-3.724..-2.491; -5.374..-1.218] |
-| `fceri_ji` | 233,656; 22 | 0.665730 -> 0.638934 | -3.938% [-4.338..-3.769; -5.251..-2.903] | 0.662634 -> 0.636178 | -3.944% [-4.311..-3.755; -5.227..-2.907] |
+| `blbr` | 5,112; N/A | 0.024501 -> 0.024358 | -0.172% [-0.832..+0.522; -6.923..+1.550] | 0.021025 -> 0.020930 | +0.081% [-0.961..+0.636; -7.255..+1.262] |
+| `SHP2_base_model` | 343,261; 202 | 0.164564 -> 0.153212 | -6.903% [-7.483..-6.295; -8.662..-5.533] | 0.158193 -> 0.147044 | -7.288% [-7.528..-6.808; -8.215..-5.269] |
+| `egfr_net` | 549,606; 102 | 0.582642 -> 0.566102 | -2.985% [-3.502..-2.451; -5.289..-1.055] | 0.570982 -> 0.554018 | -3.210% [-3.531..-2.240; -5.084..-1.687] |
+| `fceri_ji` | 233,656; 22 | 0.665730 -> 0.638934 | -3.938% [-4.338..-3.769; -5.251..-2.903] | 0.653576 -> 0.627741 | -3.956% [-4.284..-3.753; -5.625..-3.032] |
 
 Paired wall/CPU wins were respectively 11/20 and 11/20 for `blbr`, 20/20
 and 20/20 for `SHP2`, 20/20 and 20/20 for `egfr_net`, and 20/20 and 20/20
@@ -159,9 +166,10 @@ probes the exact key, and returns the existing cached label immediately for an
 exact duplicate. Only an exact-key miss canonicalizes the owned graph before
 insertion, preserving the original canonical product ordering for non-duplicate
 products. Labels are then read from the stored graph, preserving reaction
-sorting and output. This ordering is important: an earlier prototype that
-passed an uncanonicalized copy into `SpeciesList` timed out on
-`Motivating_example_cBNGL` and was not retained.
+sorting and output. This ordering is important: a follow-up that carried a
+pre-canonical exact key into insertion timed out on `Motivating_example_cBNGL`
+because canonical labeling can change serializer order; its safety-gated
+variant was noise-level or slower and was not retained.
 
 The focused regression in `tests/ast/test_SpeciesList.cpp` covers two species
 with identical structure but different molecule compartments, exact duplicate
@@ -245,6 +253,9 @@ were compared directly with the retained candidate:
 | Fingerprint plus isomorphism precheck | +10.907%, +30.282%, +22.450%, +9.928% | reject: decisively slower |
 | Temporary node-index edge lookup (wall / CPU) | +0.205% / +0.217%, -0.600% / -1.554%, -0.928% / -1.006%, -0.964% / -1.003% | reject: SHP2 CPU regression; only 9/20 CPU wins |
 | Cached compartment-aware serializer keys (wall / CPU) | +0.066% / +0.061%, -0.071% / +0.118%, +0.529% / +0.509%, +0.748% / +0.719% | reject: EGFR and FcERI regressions; 7/20 and 4/20 CPU wins |
+| Exact-key handoff after product canonicalization | -0.885% / -0.836%, -5.938% / -6.848%, -4.592% / -4.395%, -1.648% / -1.667% | reject: timed out on `Motivating_example_cBNGL` in the 41-model harness |
+| Safety-gated exact-key handoff (canonical graphs only) | +0.625% / +0.513%, +0.078% / -0.031%, +0.548% / +0.637%, -0.188% / -0.193% | reject: noise-level/slower; no material matrix win |
+| Fingerprint lookup before canonical labeling | -0.535% / -0.541%, +3.241% / +4.009%, +0.133% / +0.195%, -0.460% / -0.366% | reject: `blbr` CPU regression; no broad win |
 
 The remaining profile-dominant CPU work is canonical labeling/Nauty and related
 graph/string operations inside rule expansion and species deduplication. ODE
@@ -284,18 +295,25 @@ ctest --test-dir /private/tmp/bng-build-asan --output-on-failure --parallel 4
 ```
 
 The sanitizer suite passed 80/80, and separate ASan/UBSan production runs of
-all four models exited successfully without sanitizer diagnostics. GitHub CI
-must still be checked against the exact pushed final branch SHA; the branch
-workflows trigger only on `master` pushes or pull requests, so a branch push
-alone does not create a run.
+all four models exited successfully without sanitizer diagnostics. No GitHub
+Actions run can be created for this branch under the current workflow triggers:
+they run on `master` pushes or pull requests, and the user explicitly
+requested no RuleWorld pull request and no fork-default-branch push.
 
 The repository script `scripts/validate_cpp_against_perl.sh` was also run over
-all 41 available reference models for both executables using a temporary
-macOS-compatible `timeout` shim (GNU `timeout` is not installed here). The
-baseline and final candidate each produced 34 passes and 7 failures, with the
-same failure set: the SHP2/blbr reaction-count mismatches, missing NFsim for
+all 41 available reference models for the final source using a temporary
+macOS-compatible `timeout` shim (GNU `timeout` is not installed here). It
+produced 34 passes and 7 failures, with the same failure set documented above:
+the SHP2/blbr reaction-count mismatches, missing NFsim for
 `isingspin_localfcn`, missing companion `.net` for `michment_cont`, unsupported
 XML `readFile` in two SBML cases, and the missing `f_correct` parameter in
-`test_time`. Thus the corrected optimization did not widen the repository
-validation failure footprint. These are reported rather than silently treated
-as green.
+`test_time`. The previously passing `Motivating_example_cBNGL` also passed;
+the rejected exact-key experiment had timed out there. These are reported
+rather than silently treated as green.
+
+No GitHub Actions run was created for the final branch SHA. The checked-in
+workflows trigger on `master` pushes or pull requests, while the user
+explicitly directed that no pull request be opened against `RuleWorld` and no
+fork default-branch push be made. The final branch was pushed only to the
+fork; local Release, independent-reference, full-harness, and ASan/UBSan
+evidence above are the available validation for this no-PR delivery.
