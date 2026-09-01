@@ -25,6 +25,9 @@ PatternGraph::PatternGraph ( )
 }
 
 
+
+
+
 // Copy constructor
 PatternGraph::PatternGraph ( const PatternGraph & source )
 {
@@ -633,6 +636,16 @@ PatternGraph::find_canonical_order ( bool preserve_prior_order ) const
     node_const_iter_t              edge_iter;
     std::vector <Node*>::iterator  node_iter;
 
+    // There is no Nauty input or node index to construct for an empty graph.
+    // In particular, avoid indexing ptn[-1] below; empty SpeciesGraph values
+    // are valid inputs to SpeciesList.
+    if ( nodes.empty() )
+    {
+        label.clear();
+        canonical_flag = true;
+        return;
+    }
+
     // a map from node address to index.
     std::map <Node*,int>  node_index;
 
@@ -1237,6 +1250,3 @@ PatternGraph::split_connected ( patterngraph_container_t & split_graphs )
         connected_nodes.clear();
     }
 }
-
-
-

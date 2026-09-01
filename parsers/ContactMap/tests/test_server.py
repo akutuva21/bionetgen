@@ -1,7 +1,10 @@
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch, MagicMock
 import sys
 import os
+import tempfile
+import threading
 
 # Mock dependencies before import to avoid errors since this runs in a constrained environment
 sys.modules['pexpect'] = MagicMock()
@@ -16,38 +19,130 @@ import server
 
 class TestServer(unittest.TestCase):
 
-    @patch('server.os.remove')
-    @patch('server.glob.glob')
-    @patch('builtins.open', new_callable=mock_open, read_data=b'dummy')
-    @patch('server.createGraph')
-    @patch.object(server.BipartiteServer, '_bngl2xml')
-    def test_bipartite_oserror_path(self, mock__bngl2xml, mock_createGraph, mock_file, mock_glob, mock_remove):
-        """
-        Tests the error path in bipartite where os.remove throws an OSError,
-        verifying that it is caught and ignored gracefully.
-        """
-        # Mock glob to return some files that will be "deleted"
-        mock_glob.return_value = ['temp1.bngl', 'temp1.xml', 'temp1.xml.dot', 'temp1.xml.png']
+    @staticmethod
+    def _request_file():
+        request = MagicMock()
+        request.data = 'dummy bngl data'
+        return request
 
-        # Make os.remove raise an OSError to simulate permission denied or file not found
-        mock_remove.side_effect = OSError("Mocked OSError")
+    @staticmethod
+    def _write_outputs(bngl_path, output_dir, converted):
+        if os.path.dirname(bngl_path) != output_dir:
+            raise AssertionError('conversion path is outside its temporary directory')
+        with open(bngl_path, 'r') as handle:
+            converted.append((bngl_path, handle.read()))
+        with open(os.path.splitext(bngl_path)[0] + '.xml', 'w') as handle:
+            handle.write('<xml />')
 
-        # Set up a mock bbnglFile object
-        mock_bbnglFile = MagicMock()
-        mock_bbnglFile.data = "dummy bngl data"
+    @staticmethod
+    def _write_graph_outputs(xml_path, processed):
+        processed.append(xml_path)
+        with open(xml_path + '.dot', 'wb') as handle:
+            handle.write(b'dummy dot')
+        with open(xml_path + '.svg', 'wb') as handle:
+            handle.write(b'dummy svg')
 
-        srv = server.BipartiteServer()
+    def test_bipartite_uses_isolated_files_and_cleans_on_success(self):
+        converted = []
+        processed = []
+        with tempfile.TemporaryDirectory() as parent:
+            with patch.object(server.tempfile, 'gettempdir', return_value=parent), \
+                    patch.object(server.BipartiteServer, '_bngl2xml',
+                                 side_effect=lambda path, output_dir: self._write_outputs(path, output_dir, converted)), \
+                    patch.object(server.createGraph, 'processBNGL',
+                                 side_effect=lambda path, *args: self._write_graph_outputs(path, processed)):
+                result = server.BipartiteServer().bipartite(
+                    self._request_file(), 'dot', 'center', 'context', 'product')
 
-        # Test bipartite with 'dot' returnType
-        # The OSError should be caught gracefully without crashing
-        result = srv.bipartite(mock_bbnglFile, 'dot', 'center', 'context', 'product')
+            self.assertIsInstance(result, server.xmlrpclib.Binary)
+            self.assertEqual(result.data, b'dummy dot')
+            self.assertEqual(len(converted), 1)
+            self.assertEqual(len(processed), 1)
+            self.assertFalse(os.path.exists(os.path.dirname(converted[0][0])))
+            self.assertEqual(os.listdir(parent), [])
 
-        # Verify the returned object is a Binary object as expected
-        self.assertIsInstance(result, server.xmlrpclib.Binary)
-        self.assertEqual(result.data, b'dummy')
+    def test_bipartite_returns_svg_for_non_dot_requests(self):
+        with tempfile.TemporaryDirectory() as parent:
+            with patch.object(server.tempfile, 'gettempdir', return_value=parent), \
+                    patch.object(server.BipartiteServer, '_bngl2xml',
+                                 side_effect=lambda path, output_dir: self._write_outputs(path, output_dir, [])), \
+                    patch.object(server.createGraph, 'processBNGL',
+                                 side_effect=lambda path, *args: self._write_graph_outputs(path, [])):
+                result = server.BipartiteServer().bipartite(
+                    self._request_file(), 'svg', 'center', 'context', 'product')
 
-        # Verify os.remove was called for each file returned by glob
-        self.assertEqual(mock_remove.call_count, 4)
+            self.assertIsInstance(result, server.xmlrpclib.Binary)
+            self.assertEqual(result.data, b'dummy svg')
+
+    def test_bipartite_cleans_on_conversion_failure(self):
+        converted = []
+
+        def fail_conversion(path, output_dir):
+            converted.append(path)
+            self.assertEqual(os.path.dirname(path), output_dir)
+            self.assertTrue(os.path.isfile(path))
+            raise RuntimeError('conversion failed')
+
+        with tempfile.TemporaryDirectory() as parent:
+            with patch.object(server.tempfile, 'gettempdir', return_value=parent), \
+                    patch.object(server.BipartiteServer, '_bngl2xml', side_effect=fail_conversion):
+                with self.assertRaisesRegex(RuntimeError, 'conversion failed'):
+                    server.BipartiteServer().bipartite(
+                        self._request_file(), 'dot', 'center', 'context', 'product')
+
+            self.assertEqual(len(converted), 1)
+            self.assertFalse(os.path.exists(os.path.dirname(converted[0])))
+            self.assertEqual(os.listdir(parent), [])
+
+    @patch.object(server.subprocess, 'run')
+    def test_bngl2xml_uses_private_output_directory_and_checks_errors(self, mock_run):
+        server.BipartiteServer()._bngl2xml('/tmp/input.bngl', '/tmp/output')
+        mock_run.assert_called_once_with(
+            ['bngdev', '/tmp/input.bngl', '--xml', '--outdir', '/tmp/output'],
+            check=True,
+            shell=False)
+
+    def test_concurrent_bipartite_requests_use_distinct_directories(self):
+        converted = []
+        processed = []
+        lock = threading.Lock()
+
+        def convert(path, output_dir):
+            if os.path.dirname(path) != output_dir:
+                raise AssertionError('conversion path is outside its temporary directory')
+            with open(path, 'r') as handle:
+                contents = handle.read()
+            with lock:
+                converted.append((path, contents))
+            with open(os.path.splitext(path)[0] + '.xml', 'w') as handle:
+                handle.write('<xml />')
+
+        def process(xml_path, *args):
+            with lock:
+                processed.append(xml_path)
+            with open(xml_path + '.dot', 'wb') as handle:
+                handle.write(b'dot')
+            with open(xml_path + '.svg', 'wb') as handle:
+                handle.write(b'svg')
+
+        with tempfile.TemporaryDirectory() as parent:
+            with patch.object(server.tempfile, 'gettempdir', return_value=parent), \
+                    patch.object(server.BipartiteServer, '_bngl2xml', side_effect=convert), \
+                    patch.object(server.createGraph, 'processBNGL', side_effect=process):
+                srv = server.BipartiteServer()
+                with ThreadPoolExecutor(max_workers=8) as executor:
+                    results = list(executor.map(
+                        lambda _: srv.bipartite(
+                            self._request_file(), 'dot', 'center', 'context', 'product'),
+                        range(8)))
+
+            self.assertEqual([result.data for result in results], [b'dot'] * 8)
+            self.assertEqual(len(converted), 8)
+            self.assertEqual(len(processed), 8)
+            directories = {os.path.dirname(path) for path, _ in converted}
+            self.assertEqual(len(directories), 8)
+            self.assertTrue(all(not os.path.exists(path) for path in directories))
+            self.assertEqual(os.listdir(parent), [])
 
     def test_getTransformations(self):
         """

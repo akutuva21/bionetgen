@@ -186,6 +186,14 @@ def createSubGraph(reactantList,
                 edgeArray.append(clusterName)
     return edgeArray           
 
+def renderGraph(fileName):
+    dot_path = shutil.which('dot') or 'dot'
+    subprocess.run(
+        [dot_path, '-Tsvg', '{0}.dot'.format(fileName), '-o', '{0}.svg'.format(fileName)],
+        check=True,
+        shell=False)
+
+
 def createBiPartite(rules, transformations, fileName, reactionCenter=True, 
                     context=True, products=True):
     '''
@@ -275,8 +283,7 @@ ranksep='1.5',rankdir='LR',compound='true')
     #graph = pgv.AGraph('%s.dot' % fileName)
     #graph.layout(prog='fdp')
     #graph.draw('%s.png' % fileName)
-    dot_path = shutil.which('dot') or 'dot'
-    subprocess.call([dot_path, '-Tsvg', './{0}.dot'.format(fileName), '-o', './{0}.svg'.format(fileName)], shell=False)
+    renderGraph(fileName)
     
 
 def addAnnotations(fileName):

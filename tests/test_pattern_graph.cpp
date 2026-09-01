@@ -210,6 +210,13 @@ TEST_CASE("PatternGraph canonical finding and fast merge", "[BNGcore][PatternGra
         REQUIRE(graph.is_canonical() == false);
     }
 
+    SECTION("Empty graph canonicalization is defined") {
+        PatternGraph graph;
+
+        REQUIRE(graph.get_label().empty());
+        REQUIRE(graph.is_canonical() == true);
+    }
+
     SECTION("quick_merge merges node collections") {
         PatternGraph graph1;
         PatternGraph graph2;

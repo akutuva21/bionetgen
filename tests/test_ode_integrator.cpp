@@ -84,6 +84,54 @@ TEST_CASE("OdeIntegrator handles destruction", "[OdeIntegrator]") {
     REQUIRE_NOTHROW(integrator.reset());
 }
 
+TEST_CASE("OdeIntegrator preserves case-insensitive rate classification", "[OdeIntegrator]") {
+    auto makeNetwork = [](const std::string& rateLaw) {
+        GeneratedNetwork network;
+        network.species.setCheckIso(false);
+
+        bng::ast::SpeciesGraph reactantGraph;
+        network.species.add(bng::ast::Species(reactantGraph, 1.0));
+
+        bng::ast::SpeciesGraph productGraph;
+        network.species.add(bng::ast::Species(productGraph, 0.0));
+
+        network.reactions.add(bng::ast::Rxn(
+            "R1", {0}, {1}, rateLaw, 1.0, "dummy_rule",
+            bng::ast::Expression::number(2.0)));
+        return network;
+    };
+
+    SECTION("time keyword casing remains functional") {
+        for (const auto& rateLaw : {std::string("time"), std::string("TIME"), std::string("Time")}) {
+            bng::ast::Model model;
+            auto network = makeNetwork(rateLaw);
+            OdeIntegrator integrator(model, network);
+
+            double state[] = {1.0, 0.0};
+            double derivatives[] = {0.0, 0.0};
+            integrator.derivs(0.0, state, derivatives);
+
+            REQUIRE_THAT(derivatives[0], Catch::Matchers::WithinAbs(-2.0, 1e-12));
+            REQUIRE_THAT(derivatives[1], Catch::Matchers::WithinAbs(2.0, 1e-12));
+        }
+    }
+
+    SECTION("mixed-case function names are matched without lowercasing") {
+        bng::ast::Model model;
+        model.addFunction(bng::ast::Function(
+            "rateFn", {}, bng::ast::Expression::number(1.0)));
+        auto network = makeNetwork("RATEFN");
+        OdeIntegrator integrator(model, network);
+
+        double state[] = {1.0, 0.0};
+        double derivatives[] = {0.0, 0.0};
+        integrator.derivs(0.0, state, derivatives);
+
+        REQUIRE_THAT(derivatives[0], Catch::Matchers::WithinAbs(-2.0, 1e-12));
+        REQUIRE_THAT(derivatives[1], Catch::Matchers::WithinAbs(2.0, 1e-12));
+    }
+}
+
 TEST_CASE("OdeIntegrator handles cvode simulation", "[OdeIntegrator]") {
     bng::ast::Model model;
     GeneratedNetwork network;
@@ -117,4 +165,34 @@ TEST_CASE("OdeIntegrator handles cvode simulation", "[OdeIntegrator]") {
 
     REQUIRE_THAT(result.concentrations.back()[0], Catch::Matchers::WithinAbs(0.904837, 1e-5)); // e^-0.1
     REQUIRE_THAT(result.concentrations.back()[1], Catch::Matchers::WithinAbs(0.095162, 1e-5)); // 1 - e^-0.1
+}
+
+TEST_CASE("OdeIntegrator preserves multi-species derivative updates", "[OdeIntegrator]") {
+    bng::ast::Model model;
+    GeneratedNetwork network;
+    network.species.setCheckIso(false);
+
+    for (double amount : {3.0, 4.0, 0.0, 0.0}) {
+        bng::ast::SpeciesGraph graph;
+        network.species.add(bng::ast::Species(graph, amount));
+    }
+
+    // Cross the compact-reaction threshold while retaining a two-reactant,
+    // two-product update shape representative of generated networks.
+    for (std::size_t i = 0; i < 512; ++i) {
+        network.reactions.add(bng::ast::Rxn(
+            "R" + std::to_string(i), {0, 1}, {2, 3}, "2.0", 1.0,
+            "rule" + std::to_string(i)));
+    }
+
+    OdeIntegrator integrator(model, network);
+    double state[] = {3.0, 4.0, 0.0, 0.0};
+    double derivatives[] = {0.0, 0.0, 0.0, 0.0};
+    integrator.derivs(0.0, state, derivatives);
+
+    constexpr double expectedRate = 2.0 * 3.0 * 4.0 * 512.0;
+    REQUIRE_THAT(derivatives[0], Catch::Matchers::WithinAbs(-expectedRate, 1e-12));
+    REQUIRE_THAT(derivatives[1], Catch::Matchers::WithinAbs(-expectedRate, 1e-12));
+    REQUIRE_THAT(derivatives[2], Catch::Matchers::WithinAbs(expectedRate, 1e-12));
+    REQUIRE_THAT(derivatives[3], Catch::Matchers::WithinAbs(expectedRate, 1e-12));
 }
