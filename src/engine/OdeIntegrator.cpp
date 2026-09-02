@@ -105,6 +105,37 @@ double evaluateRateString(const std::string& rateStr,
     return resolve(s);
 }
 
+// ⚡ Bolt: Use case-insensitive string view for faster substring checking without allocations
+bool hasWordBoundaryMatchCaseInsensitive(const std::string& text, std::string_view target) {
+    if (target.empty() || text.length() < target.length()) {
+        return false;
+    }
+
+    std::size_t text_len = text.length();
+    std::size_t target_len = target.length();
+
+    for (std::size_t pos = 0; pos <= text_len - target_len; ++pos) {
+        bool match = true;
+        for (std::size_t i = 0; i < target_len; ++i) {
+            if (std::tolower(static_cast<unsigned char>(text[pos + i])) != std::tolower(static_cast<unsigned char>(target[i]))) {
+                match = false;
+                break;
+            }
+        }
+
+        if (match) {
+            bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
+            bool rightBoundary = (pos + target_len == text_len) ||
+                                 (!std::isalnum(static_cast<unsigned char>(text[pos + target_len])) && text[pos + target_len] != '_');
+
+            if (leftBoundary && rightBoundary) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // Checks if 'target' exists in 'text' bounded by non-word characters
 // Word characters are defined as alphanumeric or underscore.
 bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
@@ -112,8 +143,8 @@ bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
         return false;
     }
 
-    std::size_t pos = text.find(target);
-    while (pos != std::string::npos) {
+    std::size_t pos = 0;
+    while ((pos = text.find(target, pos)) != std::string::npos) {
         bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
         bool rightBoundary = (pos + target.length() == text.length()) ||
                              (!std::isalnum(static_cast<unsigned char>(text[pos + target.length()])) && text[pos + target.length()] != '_');
@@ -121,7 +152,7 @@ bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
         if (leftBoundary && rightBoundary) {
             return true;
         }
-        pos = text.find(target, pos + 1);
+        pos += target.length(); // ⚡ Bolt: Fast-forward past match to avoid overlapping repetitive work
     }
     return false;
 }
@@ -206,6 +237,11 @@ void OdeIntegrator::compile() {
         std::transform(fname.begin(), fname.end(), fname.begin(), [](unsigned char c) { return std::tolower(c); });
         lowerFuncNames.push_back(fname);
     }
+
+    // ⚡ Bolt: Hoisting std::string declaration outside the inner loop to avoid repetitive O(N) memory allocations per reaction
+    // Allocate string buffers for reuse
+    std::string lowerRawRL;
+    bool hasLowerRawRL = false;
 
     std::size_t rxnIndex = 0;
     for (const auto& rxn : network_.reactions.all()) {
@@ -539,8 +575,7 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
-        std::string lowerRawRL;
-        bool hasLowerRawRL = false;
+        hasLowerRawRL = false;
 
         auto ensureLowerRawRL = [&]() {
             if (!hasLowerRawRL) {
