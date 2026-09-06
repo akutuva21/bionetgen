@@ -551,6 +551,24 @@ void OdeIntegrator::compile() {
         };
 
         bool checkedFunctions = false;
+        std::vector<std::string_view> rawRLTokens;
+        bool hasRawRLTokens = false;
+
+        auto ensureRawRLTokens = [&]() {
+            if (!hasRawRLTokens) {
+                ensureLowerRawRL();
+                std::size_t start = 0;
+                for (std::size_t i = 0; i <= lowerRawRL.length(); ++i) {
+                    if (i == lowerRawRL.length() || (!std::isalnum(static_cast<unsigned char>(lowerRawRL[i])) && lowerRawRL[i] != '_')) {
+                        if (i > start) {
+                            rawRLTokens.push_back(std::string_view(lowerRawRL).substr(start, i - start));
+                        }
+                        start = i + 1;
+                    }
+                }
+                hasRawRLTokens = true;
+            }
+        };
 
         if (!isFunctional && rateExpr.has_value()) {
             ensureLowerRawRL();
@@ -570,14 +588,18 @@ void OdeIntegrator::compile() {
 
             std::string matchedFuncName;
             if (!isFunctional) {
+                ensureRawRLTokens();
                 std::size_t fIdx = 0;
                 for (const auto& func : model_.getFunctions()) {
                     const auto& lowerFname = lowerFuncNames[fIdx++];
-                    if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
-                        isFunctional = true;
-                        matchedFuncName = func.getName();
-                        break;
+                    for (auto token : rawRLTokens) {
+                        if (token == lowerFname) {
+                            isFunctional = true;
+                            matchedFuncName = func.getName();
+                            break;
+                        }
                     }
+                    if (isFunctional) break;
                 }
                 checkedFunctions = true;
             }
@@ -605,12 +627,19 @@ void OdeIntegrator::compile() {
         }
 
         if (!crxn.isFunctional && !checkedFunctions) {
-            ensureLowerRawRL();
+            ensureRawRLTokens();
 
             std::size_t fIdx = 0;
             for (const auto& func : model_.getFunctions()) {
                 const auto& lowerFname = lowerFuncNames[fIdx++];
-                if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                bool matchFound = false;
+                for (auto token : rawRLTokens) {
+                    if (token == lowerFname) {
+                        matchFound = true;
+                        break;
+                    }
+                }
+                if (matchFound) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
@@ -701,11 +730,26 @@ void OdeIntegrator::compile() {
                     // functions like kPlus() appear as Function nodes whose
                     // name is not a built-in).
                     if (!needsRuntime && str.find('(') != std::string::npos) {
-                        for (const auto& func : model_.getFunctions()) {
-                            if (hasWordBoundaryMatch(str, func.getName())) {
-                                needsRuntime = true;
-                                break;
+                        // Pre-tokenize the parsed expression string to avoid repeated O(N) word boundary searches
+                        std::vector<std::string_view> strTokens;
+                        std::size_t start = 0;
+                        for (std::size_t i = 0; i <= str.length(); ++i) {
+                            if (i == str.length() || (!std::isalnum(static_cast<unsigned char>(str[i])) && str[i] != '_')) {
+                                if (i > start) {
+                                    strTokens.push_back(std::string_view(str).substr(start, i - start));
+                                }
+                                start = i + 1;
                             }
+                        }
+
+                        for (const auto& func : model_.getFunctions()) {
+                            for (auto token : strTokens) {
+                                if (token == func.getName()) {
+                                    needsRuntime = true;
+                                    break;
+                                }
+                            }
+                            if (needsRuntime) break;
                         }
                     }
 
