@@ -107,21 +107,25 @@ double evaluateRateString(const std::string& rateStr,
 
 // Checks if 'target' exists in 'text' bounded by non-word characters
 // Word characters are defined as alphanumeric or underscore.
-bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
+// Checks if 'target' exists in 'text' bounded by non-word characters
+// Word characters are defined as alphanumeric or underscore.
+bool hasWordBoundaryMatch(std::string_view text, std::string_view target) {
     if (target.empty() || text.length() < target.length()) {
         return false;
     }
 
-    std::size_t pos = text.find(target);
-    while (pos != std::string::npos) {
-        bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
-        bool rightBoundary = (pos + target.length() == text.length()) ||
-                             (!std::isalnum(static_cast<unsigned char>(text[pos + target.length()])) && text[pos + target.length()] != '_');
+    std::size_t pos = 0;
+    const std::size_t target_len = target.length();
+    const std::size_t text_len = text.length();
 
-        if (leftBoundary && rightBoundary) {
-            return true;
+    while ((pos = text.find(target, pos)) != std::string_view::npos) {
+        bool leftBoundary = (pos == 0) || (!std::isalnum(static_cast<unsigned char>(text[pos - 1])) && text[pos - 1] != '_');
+        if (leftBoundary) {
+            bool rightBoundary = (pos + target_len == text_len) ||
+                                 (!std::isalnum(static_cast<unsigned char>(text[pos + target_len])) && text[pos + target_len] != '_');
+            if (rightBoundary) return true;
         }
-        pos = text.find(target, pos + 1);
+        pos += 1;
     }
     return false;
 }
@@ -208,6 +212,7 @@ void OdeIntegrator::compile() {
     }
 
     std::size_t rxnIndex = 0;
+    std::string lowerRawRL; // Reusable buffer for lowercasing rate laws
     for (const auto& rxn : network_.reactions.all()) {
         CompiledReaction crxn;
         crxn.reactantIndices = rxn.getReactants();
@@ -539,7 +544,6 @@ void OdeIntegrator::compile() {
         bool isFunctional = crxn.isFunctional;  // May already be set by Sat/MM/Hill
         const auto& rateExpr = rxn.getRateExpression();
 
-        std::string lowerRawRL;
         bool hasLowerRawRL = false;
 
         auto ensureLowerRawRL = [&]() {
