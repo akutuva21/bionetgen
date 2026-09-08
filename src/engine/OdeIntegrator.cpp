@@ -701,8 +701,12 @@ void OdeIntegrator::compile() {
                     // functions like kPlus() appear as Function nodes whose
                     // name is not a built-in).
                     if (!needsRuntime && str.find('(') != std::string::npos) {
+                        std::string lowerStr = str;
+                        std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), [](unsigned char c) { return std::tolower(c); });
+                        std::size_t fIdx = 0;
                         for (const auto& func : model_.getFunctions()) {
-                            if (hasWordBoundaryMatch(str, func.getName())) {
+                            const auto& lowerFname = lowerFuncNames[fIdx++];
+                            if (hasWordBoundaryMatch(lowerStr, lowerFname)) {
                                 needsRuntime = true;
                                 break;
                             }
