@@ -1,0 +1,3 @@
+## 2025-02-14 - Inline Iterator-Based Substring Matching
+**Learning:** `std::transform` calls using lambdas with manual range-based loops inside tight loops (like checking each function name against each reaction's rate law) cause memory allocations and transformation overhead. Using an inline iterator-based case-insensitive equality check instead of repeated allocations and `std::transform` calls provides zero-allocation performance for substring matching.
+**Action:** Use an inline iterator-based case-insensitive matching algorithm rather than copying strings and using `std::transform` for case-insensitive matching inside tight loops to avoid performance hits.
