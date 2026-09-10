@@ -105,6 +105,31 @@ double evaluateRateString(const std::string& rateStr,
     return resolve(s);
 }
 
+#include <string_view>
+
+// Bolt optimization: Pre-extract words into string_views to avoid repeated
+// O(N) word boundary scanning over the same rate string for every model function.
+std::vector<std::string_view> extractWords(std::string_view text) {
+    std::vector<std::string_view> words;
+    std::size_t start = std::string_view::npos;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (std::isalnum(static_cast<unsigned char>(text[i])) || text[i] == '_') {
+            if (start == std::string_view::npos) {
+                start = i;
+            }
+        } else {
+            if (start != std::string_view::npos) {
+                words.push_back(text.substr(start, i - start));
+                start = std::string_view::npos;
+            }
+        }
+    }
+    if (start != std::string_view::npos) {
+        words.push_back(text.substr(start));
+    }
+    return words;
+}
+
 // Checks if 'target' exists in 'text' bounded by non-word characters
 // Word characters are defined as alphanumeric or underscore.
 bool hasWordBoundaryMatch(const std::string& text, const std::string& target) {
@@ -571,9 +596,17 @@ void OdeIntegrator::compile() {
             std::string matchedFuncName;
             if (!isFunctional) {
                 std::size_t fIdx = 0;
+                std::vector<std::string_view> words = extractWords(lowerRawRL);
                 for (const auto& func : model_.getFunctions()) {
                     const auto& lowerFname = lowerFuncNames[fIdx++];
-                    if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                    bool found = false;
+                    for (const auto& w : words) {
+                        if (w == lowerFname) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
                         isFunctional = true;
                         matchedFuncName = func.getName();
                         break;
@@ -608,9 +641,17 @@ void OdeIntegrator::compile() {
             ensureLowerRawRL();
 
             std::size_t fIdx = 0;
+            std::vector<std::string_view> words = extractWords(lowerRawRL);
             for (const auto& func : model_.getFunctions()) {
                 const auto& lowerFname = lowerFuncNames[fIdx++];
-                if (hasWordBoundaryMatch(lowerRawRL, lowerFname)) {
+                bool found = false;
+                for (const auto& w : words) {
+                    if (w == lowerFname) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
                     crxn.isFunctional = true;
                     // Parse the full rate law string into an expression so that
                     // compound expressions like "k * funcName()" are preserved.
@@ -701,8 +742,16 @@ void OdeIntegrator::compile() {
                     // functions like kPlus() appear as Function nodes whose
                     // name is not a built-in).
                     if (!needsRuntime && str.find('(') != std::string::npos) {
+                        std::vector<std::string_view> words = extractWords(str);
                         for (const auto& func : model_.getFunctions()) {
-                            if (hasWordBoundaryMatch(str, func.getName())) {
+                            bool found = false;
+                            for (const auto& w : words) {
+                                if (w == func.getName()) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (found) {
                                 needsRuntime = true;
                                 break;
                             }
